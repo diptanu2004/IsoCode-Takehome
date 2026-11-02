@@ -1,6 +1,6 @@
 # Settle: Technical Design Document
 
-**GitHub:** `TODO: https://github.com/<owner>/<repo>`
+**GitHub:** https://github.com/diptanu2004/IsoCode-Takehome
 **Live app:** `TODO: deployed URL`
 **Demo accounts:** listed in [deployment.md](../deployment.md)
 

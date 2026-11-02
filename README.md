@@ -7,6 +7,7 @@ Upload every partner's reports and see, for each order, whether the brand was
 paid the right amount. Anything short, late or overcharged becomes a claim
 with evidence attached.
 
+- **Repository:** https://github.com/diptanu2004/IsoCode-Takehome
 - **Live app:** TODO
 - **Design document:** [docs/TDD.md](docs/TDD.md)
 - **Run and deploy:** [deployment.md](deployment.md)
