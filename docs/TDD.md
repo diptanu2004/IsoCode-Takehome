@@ -335,6 +335,7 @@ evidence.
 | `commission` | Marketplace, quick-commerce | Rate card: % of value | Settlement |
 | `fixed_fee` | Marketplace, quick-commerce | Rate card | Settlement |
 | `shipping_fee` | Marketplace, quick-commerce | Rate card by weight slab | Settlement |
+| `return_shipping_fee` | Marketplace | Rate card: % of the forward fee | Settlement |
 | `freight_forward` | Courier | Rate card by weight slab and zone | Freight invoice or remittance deduction |
 | `freight_return` | Courier | Rate card (return to origin) | Freight invoice or remittance deduction |
 | `cod_fee` | Courier | Rate card: max(minimum, % of value) | Remittance deduction or invoice |
@@ -732,7 +733,7 @@ noted.
 | A6 | For COD orders, the courier deducts forward freight and the COD fee from the remittance, and the remittance file shows them as separate columns | Matches sample row ORD-W-204118 (₹1,499 → ₹1,409 expected) | Open question 2; per-courier setting |
 | A7 | No COD fee is charged on returned COD orders | No cash was collected | Rate card |
 | A8 | Courier freight uses 500 g slabs (first slab plus each additional slab) across zones A–E | The brief mentions weight slabs but gives no rate structure | Rate card |
-| A9 | Expected freight uses the declared weight from the orders file and the zone printed on the courier invoice. Zone disputes and volumetric weight are out of scope | The brief names wrong weight slabs, not wrong zones | Future: pincode-to-zone table |
+| A9 | Expected freight uses the declared weight and the courier zone from the orders export, falling back to the zone on the courier's file. Zone disputes and volumetric weight are out of scope | The brief names wrong weight slabs, not wrong zones | Future: pincode-to-zone table |
 | A10 | Return window: 3 days after the courier marks the order returned to the warehouse | "Returns that never arrived must be caught within days" | Per-partner setting |
 | A11 | A lost return is claimed at order value | Cost price is not in the brief | Open question 6 |
 | A12 | Settlement cycles: COD remitted 7 days after delivery; marketplace and quick-commerce paid 7–15 days after delivery, depending on partner (seed values) | Not stated in the brief | Per-partner setting |
@@ -745,7 +746,9 @@ noted.
 | A19 | Uploads abandoned at the mapping step are deleted after 24 hours | Keep personal data for as little time as possible | Setting |
 | A20 | Partners are named generically: Marketplace 1–3, Quick-commerce 1–2, Courier A and B, Warehouse | The brief does not name them | Seed data |
 | A21 | One company (single tenant), Indian rupees only | The brief describes one client | — |
-| A22 | The orders export includes the AWB, declared weight, delivery status and delivery or return dates | Needed to link courier files and compute freight | Open question 5 |
+| A22 | One orders export covers every channel and includes the AWB, courier zone, declared weight, delivery status and delivery or return dates | Needed to link courier files and compute freight | Open question 5 |
+| A23 | Seed data: website 40% of orders, marketplaces 45%, quick-commerce 15%; returns 18% of website COD (refused), 6% of website prepaid, 10% marketplace, 1.5% quick-commerce; 2% cancelled. Marketplaces settle a returned order once, after the return completes | Not in the brief; chosen to give realistic volumes in each status | `scripts/generate_data.py` |
+| A24 | Seed TCS is 0.5% of the value before 5% GST, and TDS is 0.1% of value | Illustrative only; the app always uses the amounts the partner reports | Seed data |
 
 ## 15. What was cut, and what comes next
 

@@ -35,8 +35,9 @@ with evidence attached.
 ## Build status
 
 - [x] Scope, design document and deployment guide (first draft)
-- [ ] Schema, sign-in and roles
-- [ ] Seed and sample-data generator
+- [x] Schema, sign-in and roles (server-side sessions, CSRF, lockout, permission matrix tests)
+- [x] Seed and sample-data generator (60k orders, 1.5% planted leakage, answer key)
+- [x] Frontend shell: sign-in, role-aware navigation
 - [ ] Upload pipeline
 - [ ] Column mapping (rules + AI), preview, versions, rollback
 - [ ] Rate cards and matching engine, with benchmark
