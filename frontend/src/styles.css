@@ -1,0 +1,46 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+
+/*
+ * Design tokens (TDD §11). Greyscale by default; colour only carries meaning:
+ * accent = actions, loss = money lost or at risk, warn = needs review, gain = recovered.
+ */
+@theme {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+
+  --color-canvas: #f7f8fa;
+  --color-surface: #ffffff;
+  --color-line: #e4e7ec;
+  --color-line-strong: #d0d5dd;
+  --color-ink: #101828;
+  --color-muted: #5d6679;
+  --color-faint: #98a2b3;
+
+  --color-accent: #2a4bb8;
+  --color-accent-strong: #1f3a94;
+  --color-accent-soft: #eef2fc;
+
+  --color-loss: #b42318;
+  --color-loss-soft: #fef3f2;
+  --color-warn: #a15c07;
+  --color-warn-soft: #fffaeb;
+  --color-gain: #067647;
+  --color-gain-soft: #ecfdf3;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-canvas text-ink antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-accent;
+  }
+}
+
+@utility num {
+  font-variant-numeric: tabular-nums;
+}

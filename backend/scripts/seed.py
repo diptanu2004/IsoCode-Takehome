@@ -62,12 +62,10 @@ def demo_users(settings: SeedUsers) -> list[DemoUser]:
             "Set SEED_EXEC_PASSWORD and SEED_COFOUNDER_PASSWORD (10+ characters) in .env first."
         )
     return [
-        DemoUser(
-            settings.exec_email.lower(), "Finance Executive", settings.exec_password, Role.EXEC
-        ),
+        DemoUser(settings.exec_email.lower(), "Kavya Rao", settings.exec_password, Role.EXEC),
         DemoUser(
             settings.cofounder_email.lower(),
-            "Co-founder",
+            "Arjun Menon",
             settings.cofounder_password,
             Role.COFOUNDER,
         ),
@@ -186,12 +184,12 @@ def main() -> None:
         if args.reset:
             reset(conn)
         counts = seed(conn, args.as_of, people)
-        # Keep demo passwords in step with .env when the users already exist.
+        # Keep demo names and passwords in step with .env when the users already exist.
         for person in people:
             conn.execute(
                 update(users)
                 .where(users.c.email == person.email)
-                .values(password_hash=hash_password(person.password))
+                .values(name=person.name, password_hash=hash_password(person.password))
             )
     added = ", ".join(f"{n} {k}" for k, n in counts.items())
     print(f"Seed complete (as of {args.as_of}): added {added}.")
