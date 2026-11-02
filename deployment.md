@@ -33,7 +33,7 @@ Copy `.env.example` to `.env` and fill it in. Never commit `.env`.
 
 | Variable | Required | Example | Purpose |
 |---|---|---|---|
-| `DATABASE_URL` | Yes | `postgresql://recon:recon@localhost:5432/recon` | Postgres connection. Neon URLs need `?sslmode=require` |
+| `DATABASE_URL` | Yes | `postgresql://recon:recon@localhost:5433/recon` | Postgres connection. Neon URLs need `?sslmode=require` |
 | `SESSION_SECRET` | Yes | 64 random hex characters | Signs session and CSRF tokens. Generate one with `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `COOKIE_SECURE` | Yes in production | `true` | Sends cookies only over HTTPS. Set `false` for local HTTP |
 | `ANTHROPIC_API_KEY` | No | `sk-ant-…` | Turns on AI mapping suggestions |

@@ -1,0 +1,46 @@
+[project]
+name = "settle"
+version = "0.1.0"
+description = "Partner payment reconciliation for Company A"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.14",
+    "argon2-cffi>=23.1",
+    "fastapi>=0.115",
+    "fastexcel>=0.12",
+    "polars>=1.15",
+    "psycopg[binary]>=3.2",
+    "pydantic-settings>=2.6",
+    "python-multipart>=0.0.17",
+    "sqlalchemy>=2.0.36",
+    "uvicorn[standard]>=0.32",
+    "xlsxwriter>=3.2",
+]
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.16.0",
+    "pytest>=8.3",
+    "ruff>=0.8",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+"migrations/versions/*" = ["E501"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.File", "fastapi.Form"]
