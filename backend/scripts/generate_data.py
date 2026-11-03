@@ -465,6 +465,8 @@ class Generator:
             row["shipping_fee"] += r.choice((-200, -100, 100, 200))  # ±₹1–2, both directions
             self.data.noise["m2_shipping_noise_rows"] += 1
 
+        if o.channel == M3 and order_ref:
+            order_ref = f"{order_ref.lower()}-1"  # sub-order ID: lower case with a line suffix
         row.update(
             order_ref=order_ref,
             txn_date=settled_on,

@@ -1,7 +1,10 @@
-"""Load the demo setup: users, partners, report sources, rate cards and saved column mappings.
+"""Load the demo: users, partners, sources, rate cards, saved mappings and sample partner files.
 
-    uv run python -m scripts.seed            # add whatever is missing
+    uv run python -m scripts.seed            # add whatever is missing, then load sample files
     uv run python -m scripts.seed --reset    # empty every table first
+    uv run python -m scripts.seed --no-data  # setup only, no partner files
+
+Sample files are generated into var/data and loaded through the same pipeline as an upload.
 
 Safe to run more than once. Demo users come from the SEED_* environment variables.
 """
@@ -9,6 +12,7 @@ Safe to run more than once. Demo users come from the SEED_* environment variable
 import argparse
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import Connection, insert, select, text, update
@@ -18,6 +22,7 @@ from app.auth.passwords import hash_password
 from app.config import REPO_ROOT
 from app.db import get_engine
 from app.enums import MappingSource, Role
+from app.ingest.pipeline import UploadRejected, process_upload, register_upload
 from app.mapping.fingerprint import header_fingerprint
 from app.schema import (
     app_meta,
@@ -26,6 +31,7 @@ from app.schema import (
     partners,
     rate_cards,
     sources,
+    uploads,
     users,
 )
 from scripts.catalog import (
@@ -35,6 +41,7 @@ from scripts.catalog import (
     personal_columns,
     saved_mapping,
 )
+from scripts.generate_data import generate, write_dataset
 
 
 class SeedUsers(BaseSettings):
@@ -173,10 +180,37 @@ def reset(conn: Connection) -> None:
     conn.execute(text(f"TRUNCATE {names} RESTART IDENTITY CASCADE"))
 
 
+def load_sample_files(data_dir: Path) -> list[tuple[str, str, dict]]:
+    """Upload every seed file through the real pipeline, orders first, as the co-founder would."""
+    results = []
+    with get_engine().begin() as conn:
+        uploader = conn.execute(
+            select(users.c.id).where(users.c.role == Role.COFOUNDER.value).order_by(users.c.id)
+        ).scalar()
+        source_ids = dict(conn.execute(select(sources.c.name, sources.c.id)).all())
+    for fmt in SEED_FORMATS:  # the orders export comes first in the catalogue
+        path = data_dir / "seed" / fmt.filename
+        with get_engine().begin() as conn:
+            try:
+                upload_id = register_upload(
+                    conn, source_ids[fmt.source_name], fmt.filename, path.read_bytes(), uploader
+                )
+            except UploadRejected:
+                results.append((fmt.filename, "already loaded", {}))
+                continue
+        status = process_upload(upload_id)
+        with get_engine().begin() as conn:
+            stats = conn.execute(select(uploads.c.stats).where(uploads.c.id == upload_id)).scalar()
+        results.append((fmt.filename, str(status), stats))
+    return results
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--reset", action="store_true", help="empty every table first")
     parser.add_argument("--as-of", type=date.fromisoformat, default=date.today())
+    parser.add_argument("--orders", type=int, default=60000, help="orders to generate")
+    parser.add_argument("--no-data", action="store_true", help="skip generating and loading files")
     args = parser.parse_args()
 
     people = demo_users(SeedUsers())
@@ -192,9 +226,19 @@ def main() -> None:
                 .values(name=person.name, password_hash=hash_password(person.password))
             )
     added = ", ".join(f"{n} {k}" for k, n in counts.items())
-    print(f"Seed complete (as of {args.as_of}): added {added}.")
+    print(f"Setup (as of {args.as_of}): added {added}.")
     for person in people:
         print(f"  {person.role.value:9} {person.email}")
+
+    if args.no_data:
+        return
+    data_dir = REPO_ROOT / "var" / "data"
+    dataset = generate(args.as_of, args.orders, days=60, seed=7)
+    write_dataset(dataset, data_dir, {"as_of": args.as_of.isoformat(), "seed": 7, "days": 60})
+    print(f"Generated {len(dataset.orders):,} orders into {data_dir}. Loading:")
+    for filename, status, stats in load_sample_files(data_dir):
+        print(f"  {filename:38} {status:14} {stats}")
+    print(f"Demo files to upload by hand are in {data_dir / 'demo'}.")
 
 
 if __name__ == "__main__":
