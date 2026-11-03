@@ -33,3 +33,6 @@ docs/*.docx
 Thumbs.db
 .idea/
 .vscode/
+
+# Local Claude Code settings
+.claude/
