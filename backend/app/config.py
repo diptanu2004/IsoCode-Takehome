@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     llm_model: str = "claude-opus-5-5"
 
     max_upload_mb: int = 50
+    max_upload_rows: int = 300_000
+    run_worker: bool = True  # tests and one-off scripts process uploads themselves
     upload_dir: Path = REPO_ROOT / "var" / "uploads"
 
     @field_validator("session_secret")

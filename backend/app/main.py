@@ -1,3 +1,5 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
@@ -6,14 +8,16 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import Connection, text
 
 from app.auth import routes as auth_routes
-from app.config import REPO_ROOT
+from app.config import REPO_ROOT, get_settings
 from app.db import get_conn
+from app.ingest import routes as upload_routes
+from app.ingest.worker import Worker
 from app.users import routes as user_routes
 
 FRONTEND_DIST = REPO_ROOT / "frontend" / "dist"
 
 # Every API router; the access-control tests walk this list.
-API_ROUTERS = (auth_routes.router, user_routes.router)
+API_ROUTERS = (auth_routes.router, user_routes.router, upload_routes.router)
 
 _SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
@@ -22,9 +26,23 @@ _SECURITY_HEADERS = {
 }
 
 
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    worker = Worker() if get_settings().run_worker else None
+    if worker:
+        worker.start()
+    yield
+    if worker:
+        worker.stop()
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
-        title="Settle", docs_url="/api/docs", redoc_url=None, openapi_url="/api/openapi.json"
+        title="Settle",
+        docs_url="/api/docs",
+        redoc_url=None,
+        openapi_url="/api/openapi.json",
+        lifespan=lifespan,
     )
 
     @app.middleware("http")

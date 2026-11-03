@@ -11,6 +11,7 @@ TEST_DATABASE_URL = os.environ.get(
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ["SESSION_SECRET"] = "test-only-secret-" + "x" * 40
 os.environ["COOKIE_SECURE"] = "false"
+os.environ["RUN_WORKER"] = "false"  # tests run uploads themselves
 
 import pytest  # noqa: E402
 from alembic import command  # noqa: E402

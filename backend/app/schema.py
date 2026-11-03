@@ -21,7 +21,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 
 from app.enums import (
     ClaimStatus,
@@ -46,6 +46,10 @@ metadata = MetaData(
         "pk": "pk_%(table_name)s",
     }
 )
+
+
+# IDs compare byte by byte: faster than locale-aware comparison, and IDs have no locale.
+ID_TEXT = Text(collation="C")
 
 
 def _id() -> Column:
@@ -190,6 +194,10 @@ uploads = Table(
     Column("status", Text, nullable=False, server_default=UploadStatus.QUEUED.value),
     Column("error_message", Text),
     Column("stage_timings", JSONB, nullable=False, server_default=text("'{}'::jsonb")),
+    # Counts from the load: rows loaded, lines created, lines matched to an order, duplicates.
+    Column("stats", JSONB, nullable=False, server_default=text("'{}'::jsonb")),
+    # Header row found in the file; used to suggest a mapping when the format is new.
+    Column("detected", JSONB),
     Column("uploaded_by", BigInteger, ForeignKey("users.id")),
     _created_at(),
     Column("started_at", DateTime(timezone=True)),
@@ -205,10 +213,15 @@ uploads = Table(
     ),
 )
 
+# The three tables below take bulk loads of up to a few lakh rows per file. They have no foreign
+# keys: Postgres checks a foreign key with a trigger per row, which made a load 4x slower. The
+# loader (app/ingest/pipeline.py) is their only writer and takes every ID it stores from the
+# database, and tests/test_pipeline.py checks that no line points at a missing order.
+
 source_rows = Table(
     "source_rows",
     metadata,
-    Column("upload_id", BigInteger, ForeignKey("uploads.id", ondelete="CASCADE"), nullable=False),
+    Column("upload_id", BigInteger, nullable=False),
     Column("row_no", Integer, nullable=False),
     Column("raw", JSONB, nullable=False),  # original cells, personal-data columns removed
     Column("error", Text),
@@ -219,10 +232,10 @@ orders = Table(
     "orders",
     metadata,
     _id(),
-    Column("order_id", Text, nullable=False, unique=True),
+    Column("order_id", ID_TEXT, nullable=False, unique=True),
     Column("channel_partner_id", BigInteger, ForeignKey("partners.id"), nullable=False),
     Column("courier_partner_id", BigInteger, ForeignKey("partners.id")),
-    Column("awb", Text),
+    Column("awb", ID_TEXT),
     Column("zone", Text),
     Column("order_date", Date, nullable=False),
     Column("value_paise", BigInteger, nullable=False),
@@ -245,12 +258,12 @@ partner_lines = Table(
     "partner_lines",
     metadata,
     _id(),
-    Column("upload_id", BigInteger, ForeignKey("uploads.id", ondelete="CASCADE"), nullable=False),
+    Column("upload_id", BigInteger, nullable=False),
     Column("row_no", Integer, nullable=False),
-    Column("partner_id", BigInteger, ForeignKey("partners.id"), nullable=False),
-    Column("order_ref", Text),  # order ID as normalised from the partner's file
-    Column("awb", Text),
-    Column("order_id", BigInteger, ForeignKey("orders.id")),  # set once matched
+    Column("partner_id", BigInteger, nullable=False),
+    Column("order_ref", ID_TEXT),  # order ID as normalised from the partner's file
+    Column("awb", ID_TEXT),
+    Column("order_id", BigInteger),  # set once matched to an order
     Column("component", Text, nullable=False),
     Column("amount_paise", BigInteger, nullable=False),
     Column("txn_date", Date, nullable=False),
@@ -258,28 +271,40 @@ partner_lines = Table(
     Column("billed_weight_g", Integer),
     Column("zone", Text),
     # Hash of the line's natural key, so re-uploading overlapping exports never double-counts.
-    Column("line_key", Text, nullable=False, unique=True),
+    Column("line_key", UUID, nullable=False, unique=True),
     _one_of("component", Component),
     Index(None, "order_id"),
-    Index(None, "order_ref"),
-    Index(None, "awb"),
     Index(None, "upload_id"),
+    # Only unmatched lines are looked up by their keys, so only they are indexed.
+    Index(
+        "ix_partner_lines_unmatched_order_ref",
+        "order_ref",
+        postgresql_where=text("order_id IS NULL"),
+    ),
+    Index("ix_partner_lines_unmatched_awb", "awb", postgresql_where=text("order_id IS NULL")),
 )
 
 return_scans = Table(
     "return_scans",
     metadata,
     _id(),
-    Column("upload_id", BigInteger, ForeignKey("uploads.id", ondelete="CASCADE"), nullable=False),
+    Column("upload_id", BigInteger, nullable=False),
     Column("row_no", Integer, nullable=False),
-    Column("awb", Text),
-    Column("order_ref", Text),
-    Column("order_id", BigInteger, ForeignKey("orders.id")),
+    Column("awb", ID_TEXT),
+    Column("order_ref", ID_TEXT),
+    Column("order_id", BigInteger),
     Column("scanned_at", DateTime(timezone=True), nullable=False),
     Column("condition", Text),
-    Column("line_key", Text, nullable=False, unique=True),
+    Column("line_key", UUID, nullable=False, unique=True),
     CheckConstraint("awb IS NOT NULL OR order_ref IS NOT NULL", name="has_key"),
     Index(None, "order_id"),
+    Index(None, "upload_id"),
+    Index(
+        "ix_return_scans_unmatched_order_ref",
+        "order_ref",
+        postgresql_where=text("order_id IS NULL"),
+    ),
+    Index("ix_return_scans_unmatched_awb", "awb", postgresql_where=text("order_id IS NULL")),
 )
 
 # --- Expected amounts and results --------------------------------------------
