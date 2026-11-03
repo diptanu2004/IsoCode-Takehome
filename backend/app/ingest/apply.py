@@ -39,19 +39,34 @@ def drop_empty_rows(table: RawTable) -> pl.DataFrame:
     return data.filter(pl.any_horizontal(_present(pl.col(h)) for h in table.headers))
 
 
-def apply_mapping(table: RawTable, kind: FileKind, mapping: dict) -> pl.DataFrame:
-    """Columns: _row_no, one per mapped field (clean values), _error (null when the row is fine)."""
+def cell_problem_column(field_name: str) -> str:
+    return f"_problem:{field_name}"
+
+
+def apply_mapping(
+    table: RawTable,
+    kind: FileKind,
+    mapping: dict,
+    cell_problems: bool = False,
+    strict: bool = True,
+) -> pl.DataFrame:
+    """Columns: _row_no, one per mapped field (clean values), _error (null when the row is fine).
+
+    With cell_problems, also one column per field holding that cell's problem, for the preview.
+    strict=False lets a preview run before every required field is mapped.
+    """
     data = drop_empty_rows(table)
     by_header = {normalise_header(h): h for h in table.headers}
     specs: dict = mapping.get("fields", {})
 
     values: list[pl.Expr] = []
     errors: list[pl.Expr] = []
+    problems: list[pl.Expr] = []
     key_groups: dict[str, list[pl.Expr]] = {}
     for f in FIELDS[kind]:
         spec = specs.get(f.name)
         if not spec:
-            if f.required and not f.key_group:
+            if strict and f.required and not f.key_group:
                 raise MappingError(f"{f.label} isn't mapped to a column.")
             continue
         header = by_header.get(normalise_header(spec["column"]))
@@ -65,21 +80,24 @@ def apply_mapping(table: RawTable, kind: FileKind, mapping: dict) -> pl.DataFram
 
         present = _present(raw)
         shown = raw.str.strip_chars().str.slice(0, 40)
-        errors.append(
-            pl.when(present & value.is_null()).then(
-                pl.format(
-                    "{}: “{}” isn't a valid {}", pl.lit(f.label), shown, pl.lit(_TYPE_WORDS[f.type])
-                )
+        invalid = pl.when(present & value.is_null()).then(
+            pl.format(
+                "{}: “{}” isn't a valid {}", pl.lit(f.label), shown, pl.lit(_TYPE_WORDS[f.type])
             )
         )
+        missing = pl.lit(None, pl.String)
         if f.key_group:
             key_groups.setdefault(f.key_group, []).append(present)
         elif f.required and not f.blank_ok:
-            errors.append(pl.when(~present).then(pl.lit(f"{f.label} is missing")))
+            missing = pl.when(~present).then(pl.lit(f"{f.label} is missing"))
+        errors += [invalid, missing]
+        problems.append(pl.coalesce(invalid, missing).alias(cell_problem_column(f.name)))
 
     for group, present in key_groups.items():
         labels = " or ".join(f.label for f in FIELDS[kind] if f.key_group == group)
         errors.append(pl.when(~pl.any_horizontal(present)).then(pl.lit(f"Needs an {labels}")))
 
     error = pl.coalesce(errors) if errors else pl.lit(None, pl.String)
-    return data.select(pl.col(ROW_NO), *values, error.alias(ERROR))
+    return data.select(
+        pl.col(ROW_NO), *values, error.alias(ERROR), *(problems if cell_problems else [])
+    )

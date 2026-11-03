@@ -12,12 +12,18 @@ from app.config import REPO_ROOT, get_settings
 from app.db import get_conn
 from app.ingest import routes as upload_routes
 from app.ingest.worker import Worker
+from app.mapping import routes as mapping_routes
 from app.users import routes as user_routes
 
 FRONTEND_DIST = REPO_ROOT / "frontend" / "dist"
 
 # Every API router; the access-control tests walk this list.
-API_ROUTERS = (auth_routes.router, user_routes.router, upload_routes.router)
+API_ROUTERS = (
+    auth_routes.router,
+    user_routes.router,
+    upload_routes.router,
+    mapping_routes.router,
+)
 
 _SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
