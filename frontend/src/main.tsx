@@ -9,6 +9,7 @@ import { AppShell } from "./components/AppShell";
 import { ApiError } from "./lib/api";
 import { Overview } from "./pages/Overview";
 import { SignIn } from "./pages/SignIn";
+import { Uploads } from "./pages/Uploads";
 import "./styles.css";
 
 const queryClient: QueryClient = new QueryClient({
@@ -33,6 +34,7 @@ const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <Overview /> },
+      { path: "uploads", element: <Uploads /> },
       { path: "*", element: <NotFound /> },
     ],
   },

@@ -1,4 +1,4 @@
-import { LayoutDashboard, LogOut, Menu, X, type LucideIcon } from "lucide-react";
+import { FileUp, LayoutDashboard, LogOut, Menu, X, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
 import { ROLE_LABELS, can, useMe, useSignOut, type Me, type Permission } from "../auth/session";
@@ -13,7 +13,10 @@ interface NavItem {
 }
 
 // Screens are added here as they are built, so the menu never leads to a dead end.
-const NAV: NavItem[] = [{ to: "/", label: "Overview", icon: LayoutDashboard, permission: "dashboard.view" }];
+const NAV: NavItem[] = [
+  { to: "/", label: "Overview", icon: LayoutDashboard, permission: "dashboard.view" },
+  { to: "/uploads", label: "Uploads", icon: FileUp, permission: "recon.view" },
+];
 
 function Navigation({ me }: { me: Me }) {
   return (

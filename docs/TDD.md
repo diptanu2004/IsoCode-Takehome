@@ -241,11 +241,23 @@ Rules that apply across the model:
   `row_no`, so a claim can always show the file, the row and the original
   cells it came from.
 - **Uploads are idempotent.** A file whose sha256 has been seen before is
-  rejected. Rows are upserted on their natural key, so uploading an
-  overlapping export does not double-count.
+  rejected. Each partner line has a key made from its natural fields (partner,
+  order ID, AWB, component, reference, date), so an overlapping export adds no
+  line twice. Repeats inside one file are numbered, so a real double charge is
+  kept. An orders re-export rewrites only the orders that changed.
+- **Bulk-loaded tables have no foreign keys.** `partner_lines`, `return_scans`
+  and `source_rows` take a few lakh rows per file. Postgres checks a foreign key
+  with a trigger per row, and on the seed data that made loads about 4× slower.
+  The loader is the only writer of these tables and takes every ID it stores
+  from the database. A test checks that no line points at a missing order.
 - **Indexes:**
   - `orders(order_id)` is unique; `orders(awb)`;
-  - `partner_lines(order_id)`, `partner_lines(awb)`, `partner_lines(upload_id)`;
+  - `partner_lines(line_key)` is unique; `partner_lines(order_id)`,
+    `partner_lines(upload_id)`;
+  - `order_ref` and `awb` on lines and scans are indexed only while the line is
+    unmatched, because only unmatched lines are looked up by them;
+  - ID columns compare byte by byte (`COLLATE "C"`), which is faster and right
+    for IDs;
   - `order_recon(status)`;
   - `claims(partner_id, status)`.
 
@@ -573,7 +585,22 @@ matched automatically, as the brief requires.
 
 ## 10. Performance: 1 lakh rows in under a minute
 
-Each stage has a time budget. Measurements are **TBD**.
+Each stage has a time budget. The full 1 lakh-row benchmark is **TBD** (day 4).
+
+Measured so far, on the 60k-order seed (laptop, Postgres 16 in Docker
+Desktop on Windows):
+
+| File | Rows | Lines stored | Total time |
+|---|---:|---:|---:|
+| Orders export | 60,003 | 60,003 orders | 7.4 s |
+| Marketplace 1 settlement | 9,265 | 52,660 | 2.0 s |
+| Courier A freight invoice | 8,713 | 8,713 | 1.7 s |
+
+Reading and cleaning a 60k-row file takes under 0.5 s. Nearly all the time is
+in Postgres writes. Two changes measured on this data cut the Marketplace 1
+load from 12 s to 2 s: dropping per-row foreign-key checks on the bulk tables
+(§6), and replacing `INSERT … ON CONFLICT` with an anti-join and a plain
+`INSERT`.
 
 | Stage | Budget | Measured |
 |---|---:|---:|

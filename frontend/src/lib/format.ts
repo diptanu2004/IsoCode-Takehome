@@ -35,3 +35,32 @@ export function formatCompact(paise: number): string {
 function trim(fixed: string): string {
   return fixed.replace(/\.0+$/, "").replace(/(\.\d*?)0+$/, "$1");
 }
+
+const count = new Intl.NumberFormat("en-IN");
+const dateTime = new Intl.DateTimeFormat("en-IN", {
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+/** 1,00,000 — Indian digit grouping for counts. */
+export function formatCount(value: number): string {
+  return count.format(value);
+}
+
+/** 3 Nov, 19:42 */
+export function formatDateTime(iso: string): string {
+  return dateTime.format(new Date(iso));
+}
+
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function formatSeconds(seconds: number): string {
+  return seconds < 10 ? `${seconds.toFixed(1)} s` : `${Math.round(seconds)} s`;
+}

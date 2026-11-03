@@ -38,7 +38,7 @@ with evidence attached.
 - [x] Schema, sign-in and roles (server-side sessions, CSRF, lockout, permission matrix tests)
 - [x] Seed and sample-data generator (60k orders, 1.5% planted leakage, answer key)
 - [x] Frontend shell: sign-in, role-aware navigation
-- [ ] Upload pipeline
+- [x] Upload pipeline and Uploads screen (bulk load, duplicate and overlap safety, rejected-row download)
 - [ ] Column mapping (rules + AI), preview, versions, rollback
 - [ ] Rate cards and matching engine, with benchmark
 - [ ] Reconciliation and claims screens, evidence export

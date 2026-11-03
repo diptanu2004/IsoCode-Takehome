@@ -65,7 +65,7 @@ docker compose up -d db                       # Postgres only
 cd backend
 uv sync
 uv run alembic upgrade head                   # create the schema
-uv run python -m scripts.seed                 # demo users, partners, rate cards, one month of orders
+uv run python -m scripts.seed                 # demo setup, then 60k orders of partner files (~40 s)
 uv run uvicorn app.main:app --reload          # API on http://localhost:8000
 
 cd ../frontend

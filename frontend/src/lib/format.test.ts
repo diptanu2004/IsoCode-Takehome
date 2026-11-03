@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatCompact, formatRupees } from "./format";
+import { formatBytes, formatCompact, formatCount, formatRupees, formatSeconds } from "./format";
 
 describe("formatRupees", () => {
   it("uses Indian digit grouping", () => {
@@ -31,5 +31,20 @@ describe("formatCompact", () => {
 
   it("keeps the sign", () => {
     expect(formatCompact(-648000000)).toBe("−₹64.8 L");
+  });
+});
+
+describe("counts and sizes", () => {
+  it("groups counts the Indian way", () => {
+    expect(formatCount(100000)).toBe("1,00,000");
+  });
+  it("formats file sizes", () => {
+    expect(formatBytes(512)).toBe("512 B");
+    expect(formatBytes(2048)).toBe("2 KB");
+    expect(formatBytes(15 * 1024 * 1024)).toBe("15.0 MB");
+  });
+  it("formats durations", () => {
+    expect(formatSeconds(1.84)).toBe("1.8 s");
+    expect(formatSeconds(34.4)).toBe("34 s");
   });
 });
