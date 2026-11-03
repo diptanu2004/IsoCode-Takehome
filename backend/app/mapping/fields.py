@@ -34,6 +34,7 @@ class TargetField:
     deduction: bool = False  # money the partner keeps; stored as a negative amount
     choices: type[StrEnum] | None = None
     key_group: str | None = None  # at least one field of the group must be mapped
+    blank_ok: bool = False  # a row may leave it empty; the line then loads unmatched
 
 
 def _f(*args, **kwargs) -> TargetField:
@@ -71,7 +72,14 @@ _ORDERS = (
 )
 
 _SETTLEMENT = (
-    _f("order_ref", "Order ID", "Order ID the payout line belongs to", FieldType.ID, True),
+    _f(
+        "order_ref",
+        "Order ID",
+        "Order ID the payout line belongs to",
+        FieldType.ID,
+        True,
+        blank_ok=True,
+    ),
     _f("txn_date", "Settlement date", "Date the partner paid out", FieldType.DATE, True),
     _f(
         "sale",
