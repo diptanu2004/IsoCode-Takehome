@@ -550,12 +550,22 @@ after the format changes. Matching and expected amounts stay rule-based.
 
 - **Model:** `claude-opus-5-5`, configurable through the `LLM_MODEL`
   environment variable.
-- **Output:** structured outputs (a JSON schema set in `output_config.format`,
-  parsed into a Pydantic model), so the response is always valid JSON in the
-  expected shape.
-- **Cost:** one call per *new partner format*, not per file. The input is
-  headers and type signatures only, so each call is small. **TBD:** measured
-  tokens and cost per call.
+- **Output:** structured outputs through the SDK's `messages.parse`, into a
+  Pydantic model, so the response always arrives in the expected shape. The
+  answer is then checked against the file again (§9.1 step 4), because a
+  valid shape can still name a column that doesn't exist.
+- **Effort:** `low`. Picking columns is classification-like work, and the
+  fixture results decide whether that is enough (§9.4).
+- **Refusals:** the server-side fallback is switched on, so a declined request
+  is retried on a suitable model within the same call. If the whole chain
+  declines, the rules take over (§9.3).
+- **What it sees:** for each column, the header, a value description such as
+  "date, dd-Mon-yyyy" or "amount with decimals, all positive", the share of
+  filled cells, and the number of distinct values. Category labels and cell
+  values are never sent.
+- **Cost:** one call per *new partner format*, not per file. A suggestion is
+  stored with the upload, so reopening the screen doesn't call the AI again.
+  **TBD:** measured tokens and cost per call (needs an API key).
 
 ### 9.3 When the AI is wrong, unsure or unavailable
 
@@ -569,13 +579,22 @@ after the format changes. Matching and expected amounts stay rule-based.
 
 ### 9.4 How it is tested
 
-- A fixture set of about 20 changed-format files. Columns are renamed,
-  reordered and abbreviated, extra columns are added, and title rows sit above
-  the header. Each fixture has the mapping it should produce.
-- Tests that do not need an API key cover validation, merging and the
-  fallback, using a stubbed LLM response.
-- A separate run against the real API, which needs a key, reports accuracy on
-  the fixtures. **TBD:** results.
+- **Fixtures** (`scripts/mapping_fixtures.py`): six report layouts with 57
+  fields, using names the rule synonyms were not written for, such as "Mkt
+  Fee", "Tax Deducted at Source", "Wt Charged (gm)" and "Placed On". Values are
+  generated with realistic shapes, and personal-data columns are mixed in.
+  `scripts/eval_mapping.py` scores them.
+- **Rules alone:** 47 of 57 fields right (82%). 2 are wrong, but both fall
+  below the review line, so the screen marks them **Check**. 8 are left for a
+  person to map. A test enforces the property that matters most: the rules
+  are **never confidently wrong**.
+- **Rules and AI:** `scripts/eval_mapping.py --ai` and a test that runs only
+  when `ANTHROPIC_API_KEY` is set, with a target of 90% and at most one
+  confidently wrong field. **TBD:** results (needs an API key).
+- **Without a key**, tests cover merging, agreement, disagreement, invented
+  columns, failures and reuse of a saved layout, using a stubbed AI response.
+- **On the known formats** (the 11 seed layouts and Marketplace 1's changed
+  report), the rules map every field except one, which a synonym then fixed.
 
 ### 9.5 Suggested matches for rows with no order ID (stretch)
 

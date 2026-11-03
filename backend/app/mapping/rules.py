@@ -204,12 +204,12 @@ def _name_score(f: TargetField, header: str) -> tuple[float, str]:
     name = normalise(header)
     names = SYNONYMS.get(f.name, []) + [normalise(f.label)]
     if name in names:
-        return 0.95, "column name is a known name for this field"
+        return 0.95, "Known name for this field"
     best = max(SequenceMatcher(None, name, n).ratio() for n in names)
     tokens = set(name.split())
     overlap = max(len(tokens & set(n.split())) / max(len(set(n.split())), 1) for n in names)
     score = max(best, overlap * 0.9)
-    return score * 0.85, "column name is close to a known name"
+    return score * 0.85, "Name is close to a known name for this field"
 
 
 def suggest_with_rules(kind: FileKind, profiles: list[ColumnProfile]) -> dict[str, Choice]:
@@ -223,7 +223,7 @@ def suggest_with_rules(kind: FileKind, profiles: list[ColumnProfile]) -> dict[st
             fit = _FIT[f.type].get(p.kind, 0.25)
             score = name * fit
             if fit < 0.5:
-                why += f", but its values ({p.detail}) don't suit a {f.type.value}"
+                why += f", but its values ({p.detail}) don't look like a {f.type.value}"
             candidates.append((score, f.name, p.header, why))
 
     chosen: dict[str, Choice] = {}
@@ -240,7 +240,7 @@ def suggest_with_rules(kind: FileKind, profiles: list[ColumnProfile]) -> dict[st
     for f in FIELDS[kind]:
         is_date = f.type in (FieldType.DATE, FieldType.DATETIME)
         if is_date and f.required and f.name not in chosen and len(dates) == 1:
-            chosen[f.name] = Choice(dates[0], 0.6, "the only date column in the file")
+            chosen[f.name] = Choice(dates[0], 0.6, "The only date column in the file")
             used.add(dates[0])
     return chosen
 

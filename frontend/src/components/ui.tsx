@@ -133,3 +133,35 @@ export function Alert({ children }: { children: ReactNode }) {
     </div>
   );
 }
+
+export type Tone = "neutral" | "accent" | "gain" | "warn" | "loss";
+
+const TONES: Record<Tone, string> = {
+  neutral: "bg-canvas text-muted ring-line",
+  accent: "bg-accent-soft text-accent ring-accent/15",
+  gain: "bg-gain-soft text-gain ring-gain/15",
+  warn: "bg-warn-soft text-warn ring-warn/20",
+  loss: "bg-loss-soft text-loss ring-loss/15",
+};
+
+export function Badge({ tone = "neutral", children, title }: { tone?: Tone; children: ReactNode; title?: string }) {
+  return (
+    <span
+      title={title}
+      className={cx(
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ring-1 ring-inset",
+        TONES[tone],
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+export function Notice({ tone = "accent", children }: { tone?: Exclude<Tone, "neutral">; children: ReactNode }) {
+  return (
+    <div role="status" className={cx("rounded-md px-3 py-2.5 text-sm ring-1 ring-inset", TONES[tone])}>
+      {children}
+    </div>
+  );
+}

@@ -39,7 +39,7 @@ with evidence attached.
 - [x] Seed and sample-data generator (60k orders, 1.5% planted leakage, answer key)
 - [x] Frontend shell: sign-in, role-aware navigation
 - [x] Upload pipeline and Uploads screen (bulk load, duplicate and overlap safety, rejected-row download)
-- [ ] Column mapping (rules + AI), preview, versions, rollback
+- [x] Column mapping: rules + AI suggestions, 20-row preview, approval, versions, rollback
 - [ ] Rate cards and matching engine, with benchmark
 - [ ] Reconciliation and claims screens, evidence export
 - [ ] Overview (money at risk, TCS/TDS)

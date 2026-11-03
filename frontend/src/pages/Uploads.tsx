@@ -1,7 +1,8 @@
 import { AlertTriangle, CheckCircle2, Download, FileUp, Inbox, LoaderCircle, XCircle } from "lucide-react";
 import { useMemo, useRef, useState, type DragEvent, type FormEvent } from "react";
+import { Link, useLocation } from "react-router";
 import { can, useMe } from "../auth/session";
-import { Alert, Button, EmptyState, PageHeader, Spinner, cx, useTitle } from "../components/ui";
+import { Alert, Button, EmptyState, Notice, PageHeader, Spinner, cx, useTitle } from "../components/ui";
 import { formatBytes, formatCount, formatDateTime, formatSeconds } from "../lib/format";
 import {
   KIND_LABELS,
@@ -19,12 +20,18 @@ const ACCEPT = ".csv,.xlsx";
 export function Uploads() {
   useTitle("Uploads");
   const { data: me } = useMe();
+  const notice = (useLocation().state as { notice?: string } | null)?.notice;
   return (
     <>
       <PageHeader
         title="Uploads"
         description="Partner reports, loaded into Settle. Each source remembers its column layout."
       />
+      {notice && (
+        <div className="mb-4">
+          <Notice tone="gain">{notice}</Notice>
+        </div>
+      )}
       {can(me, "upload.create") && <UploadPanel />}
       <UploadHistory />
     </>
@@ -191,12 +198,36 @@ function outcome(upload: Upload): string | null {
 }
 
 function Detail({ upload }: { upload: Upload }) {
+  const { data: me } = useMe();
   if (upload.status === "needs_mapping") {
-    return <p className="text-warn">The columns don't match the saved layout. Map them to load this file.</p>;
+    return (
+      <p className="text-warn">
+        The columns don't match the saved layout.{" "}
+        {can(me, "mapping.approve") ? (
+          <Link to={`/uploads/${upload.id}/mapping`} className="font-medium text-accent hover:text-accent-strong">
+            Map columns
+          </Link>
+        ) : (
+          "Waiting for someone who can approve mappings."
+        )}
+      </p>
+    );
   }
   if (upload.status === "failed") return <p className="text-loss">{upload.error_message}</p>;
   const text = outcome(upload);
-  return text ? <p className="text-muted">{text}</p> : null;
+  return text ? (
+    <p className="text-muted">
+      {text}
+      {upload.mapping_version && (
+        <>
+          {" · "}
+          <Link to={`/sources/${upload.source_id}/layouts`} className="hover:text-ink hover:underline">
+            layout v{upload.mapping_version}
+          </Link>
+        </>
+      )}
+    </p>
+  ) : null;
 }
 
 function RejectedLink({ upload }: { upload: Upload }) {
@@ -306,7 +337,7 @@ function UploadHistory() {
                   </td>
                   <td className="num px-4 py-3 text-right">{u.row_count == null ? "—" : formatCount(u.row_count)}</td>
                   <td className="num px-4 py-3 text-right text-muted">
-                    {seconds == null || isInProgress(u) ? "—" : formatSeconds(seconds)}
+                    {seconds == null || !["done", "failed"].includes(u.status) ? "—" : formatSeconds(seconds)}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-muted">
                     {formatDateTime(u.created_at)}

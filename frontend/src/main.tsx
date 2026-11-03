@@ -7,8 +7,10 @@ import { NotFound, RequireAuth } from "./App";
 import { ME_KEY } from "./auth/session";
 import { AppShell } from "./components/AppShell";
 import { ApiError } from "./lib/api";
+import { Mapping } from "./pages/Mapping";
 import { Overview } from "./pages/Overview";
 import { SignIn } from "./pages/SignIn";
+import { SourceLayouts } from "./pages/SourceLayouts";
 import { Uploads } from "./pages/Uploads";
 import "./styles.css";
 
@@ -35,6 +37,8 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Overview /> },
       { path: "uploads", element: <Uploads /> },
+      { path: "uploads/:uploadId/mapping", element: <Mapping /> },
+      { path: "sources/:sourceId/layouts", element: <SourceLayouts /> },
       { path: "*", element: <NotFound /> },
     ],
   },
