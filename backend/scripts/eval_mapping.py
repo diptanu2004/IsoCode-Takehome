@@ -1,8 +1,8 @@
 """Score mapping suggestions on layouts the rules weren't written for.
 
     uv run python -m scripts.eval_mapping          # rules only
-    uv run python -m scripts.eval_mapping --ai     # rules + AI (needs ANTHROPIC_API_KEY; costs a
-                                                   # few cents: one call per case)
+    uv run python -m scripts.eval_mapping --ai     # rules + AI (needs the provider's key in
+                                                   # .env; one call per case)
 
 Prints per case: fields right, wrong (a confident wrong pick is the costly kind), and missed.
 """

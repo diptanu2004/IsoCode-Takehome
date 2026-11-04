@@ -1,10 +1,14 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+# Groq: the largest model with strict structured outputs there. Anthropic: the current Opus.
+DEFAULT_MODELS = {"groq": "openai/gpt-oss-120b", "anthropic": "claude-opus-5-5"}
 
 
 class Settings(BaseSettings):
@@ -17,8 +21,12 @@ class Settings(BaseSettings):
     cookie_secure: bool = False
     session_ttl_hours: int = 12
 
+    # Column-mapping suggestions (TDD §9). Without a key, suggestions come from rules only.
+    llm_provider: Literal["groq", "anthropic"] = "groq"
+    groq_api_key: str = ""
     anthropic_api_key: str = ""
-    llm_model: str = "claude-opus-5-5"
+    llm_model: str = ""  # empty: the provider's default below
+    ai_enabled: bool = True  # tests switch it off so they never call a paid API
 
     max_upload_mb: int = 50
     max_upload_rows: int = 300_000
@@ -34,6 +42,14 @@ class Settings(BaseSettings):
                 'python -c "import secrets; print(secrets.token_hex(32))"'
             )
         return value
+
+    @property
+    def llm_api_key(self) -> str:
+        return self.groq_api_key if self.llm_provider == "groq" else self.anthropic_api_key
+
+    @property
+    def llm_model_name(self) -> str:
+        return self.llm_model or DEFAULT_MODELS[self.llm_provider]
 
     @property
     def sqlalchemy_url(self) -> str:

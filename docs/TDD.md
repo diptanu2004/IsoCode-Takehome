@@ -162,7 +162,7 @@ flowchart LR
   end
   API --> DB[("Postgres")]
   W --> DB
-  W -- "headers and column type<br/>signatures only, no values" --> LLM["Claude API<br/>mapping suggestions"]
+  W -- "headers and column type<br/>signatures only, no values" --> LLM["LLM API (Groq)<br/>mapping suggestions"]
   W -. "temp file, deleted after load" .-> FS[("Container disk")]
 ```
 
@@ -183,7 +183,8 @@ flowchart LR
 - **File parsing.** Polars reads CSV, and the calamine engine reads Excel.
   Normalisation runs on whole columns at once.
 - **Matching.** Set-based SQL that runs inside Postgres (§8, §10).
-- **AI.** The Anthropic Python SDK calls Claude for mapping suggestions (§9).
+- **AI.** Groq's Python SDK calls an LLM for mapping suggestions (§9). Anthropic is
+  a configured alternative.
   The app works without an API key; suggestions then come from rules only.
 
 ### 5.2 Choices and alternatives
@@ -548,24 +549,33 @@ after the format changes. Matching and expected amounts stay rule-based.
 
 ### 9.2 Model and output
 
-- **Model:** `claude-opus-5-5`, configurable through the `LLM_MODEL`
-  environment variable.
-- **Output:** structured outputs through the SDK's `messages.parse`, into a
-  Pydantic model, so the response always arrives in the expected shape. The
-  answer is then checked against the file again (§9.1 step 4), because a
+- **Provider and model:** Groq, running `openai/gpt-oss-120b` (set with
+  `LLM_PROVIDER` and `LLM_MODEL`). Groq was chosen because:
+  - it has a free tier, so the demo and the accuracy measurement cost nothing;
+  - it answers in about a second;
+  - it supports strict structured outputs.
+
+  The brief names no provider. Because the model sees no values (see "What it
+  sees" below), sending headers to a third-party API raises no personal-data
+  concern. Anthropic Claude (`claude-opus-5-5`) is wired up as an alternative
+  through the same interface.
+- **Output:** strict structured outputs. The JSON schema comes from the
+  Pydantic model, with every object closed and every field required, which
+  is what Groq's strict mode needs. The reply is parsed back into that model.
+  The answer is then checked against the file again (§9.1 step 4), because a
   valid shape can still name a column that doesn't exist.
-- **Effort:** `low`. Picking columns is classification-like work, and the
-  fixture results decide whether that is enough (§9.4).
-- **Refusals:** the server-side fallback is switched on, so a declined request
-  is retried on a suitable model within the same call. If the whole chain
-  declines, the rules take over (§9.3).
+- **Reasoning effort:** `low`, with temperature 0. Picking columns is
+  classification-like work, and the fixture results decide whether that is
+  enough (§9.4).
+- **No LangChain.** This is one request returning one JSON object. The
+  provider's own SDK is less code and has nothing in between to debug.
 - **What it sees:** for each column, the header, a value description such as
   "date, dd-Mon-yyyy" or "amount with decimals, all positive", the share of
   filled cells, and the number of distinct values. Category labels and cell
   values are never sent.
 - **Cost:** one call per *new partner format*, not per file. A suggestion is
   stored with the upload, so reopening the screen doesn't call the AI again.
-  **TBD:** measured tokens and cost per call (needs an API key).
+  **TBD:** measured tokens and time per call (needs a Groq key).
 
 ### 9.3 When the AI is wrong, unsure or unavailable
 
@@ -589,7 +599,7 @@ after the format changes. Matching and expected amounts stay rule-based.
   person to map. A test enforces the property that matters most: the rules
   are **never confidently wrong**.
 - **Rules and AI:** `scripts/eval_mapping.py --ai` and a test that runs only
-  when `ANTHROPIC_API_KEY` is set, with a target of 90% and at most one
+  when `GROQ_API_KEY` is in `.env`, with a target of 90% and at most one
   confidently wrong field. **TBD:** results (needs an API key).
 - **Without a key**, tests cover merging, agreement, disagreement, invented
   columns, failures and reuse of a saved layout, using a stubbed AI response.

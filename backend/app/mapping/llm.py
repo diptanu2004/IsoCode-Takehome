@@ -1,16 +1,21 @@
-"""Ask Claude which column holds each field, from column names and value shapes only (TDD §9).
+"""Ask an LLM which column holds each field, from column names and value shapes only (TDD §9).
 
 The model never sees a cell value: it gets each header with a description such as "date,
-dd-Mon-yyyy" or "amount with decimals, all positive". Its answer is schema-checked by the SDK
-and then validated against the file again, because a model can still name a column that isn't
-there. Any failure raises AISuggestionError and the caller falls back to rules.
+dd-Mon-yyyy" or "amount with decimals, all positive". Its answer is constrained to a JSON schema,
+parsed into MappingProposal, and then checked against the file again, because a model can still
+name a column that isn't there. Any failure raises AISuggestionError and the caller falls back to
+rules.
+
+Two providers, chosen with LLM_PROVIDER: Groq (default; openai/gpt-oss-120b with strict
+structured outputs) and Anthropic (Claude). Both are called through their own SDKs.
 """
 
 import json
 import logging
 
 import anthropic
-from pydantic import BaseModel, Field
+import groq
+from pydantic import BaseModel, Field, ValidationError
 
 from app.config import get_settings
 from app.enums import FileKind
@@ -81,24 +86,98 @@ def _prompt(kind: FileKind, partner: str, profiles: list[ColumnProfile]) -> str:
 
 
 def is_configured() -> bool:
-    return bool(get_settings().anthropic_api_key)
+    settings = get_settings()
+    return settings.ai_enabled and bool(settings.llm_api_key)
 
 
 def suggest_with_ai(kind: FileKind, partner: str, profiles: list[ColumnProfile]) -> MappingProposal:
     settings = get_settings()
-    if not settings.anthropic_api_key:
+    if not is_configured():
         raise AISuggestionError("AI suggestions are switched off (no API key is configured).")
+    prompt = _prompt(kind, partner, profiles)
+    if settings.llm_provider == "groq":
+        return _ask_groq(settings, prompt)
+    return _ask_anthropic(settings, prompt)
+
+
+def _strict_schema(model: type[BaseModel]) -> dict:
+    """Pydantic's schema, tightened for strict decoding: every object closed and fully required."""
+
+    def close(node):
+        if isinstance(node, dict):
+            if node.get("type") == "object" and "properties" in node:
+                node["additionalProperties"] = False
+                node["required"] = list(node["properties"])
+            for value in node.values():
+                close(value)
+        elif isinstance(node, list):
+            for value in node:
+                close(value)
+        return node
+
+    return close(model.model_json_schema())
+
+
+def _ask_groq(settings, prompt: str) -> MappingProposal:
+    client = groq.Groq(api_key=settings.groq_api_key, timeout=TIMEOUT_SECONDS, max_retries=1)
+    try:
+        response = client.chat.completions.create(
+            model=settings.llm_model_name,
+            messages=[
+                {"role": "system", "content": _SYSTEM},
+                {"role": "user", "content": prompt},
+            ],
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "mapping_proposal",
+                    "strict": True,
+                    "schema": _strict_schema(MappingProposal),
+                },
+            },
+            # Choosing columns is classification-like work; low effort keeps it quick and cheap.
+            reasoning_effort="low",
+            max_completion_tokens=4000,
+            temperature=0,
+        )
+    except groq.APITimeoutError as exc:
+        raise AISuggestionError("The AI took too long to answer.") from exc
+    except groq.RateLimitError as exc:
+        raise AISuggestionError("The AI service is busy right now.") from exc
+    except groq.APIStatusError as exc:
+        log.warning("AI mapping request failed: %s", exc)
+        raise AISuggestionError("The AI service returned an error.") from exc
+    except groq.APIConnectionError as exc:
+        raise AISuggestionError("Couldn't reach the AI service.") from exc
+
+    choice = response.choices[0]
+    if choice.finish_reason == "length" or not choice.message.content:
+        raise AISuggestionError("The AI's answer was incomplete.")
+    try:
+        proposal = MappingProposal.model_validate_json(choice.message.content)
+    except ValidationError as exc:
+        raise AISuggestionError("The AI's answer wasn't in the expected shape.") from exc
+    usage = response.usage
+    if usage:
+        log.info(
+            "AI mapping (groq): %s input, %s output tokens",
+            usage.prompt_tokens,
+            usage.completion_tokens,
+        )
+    return proposal
+
+
+def _ask_anthropic(settings, prompt: str) -> MappingProposal:
     client = anthropic.Anthropic(
         api_key=settings.anthropic_api_key, timeout=TIMEOUT_SECONDS, max_retries=1
     )
     try:
         response = client.beta.messages.parse(
-            model=settings.llm_model,
+            model=settings.llm_model_name,
             max_tokens=4000,
             system=_SYSTEM,
-            messages=[{"role": "user", "content": _prompt(kind, partner, profiles)}],
+            messages=[{"role": "user", "content": prompt}],
             output_format=MappingProposal,
-            # Choosing columns is classification-like work; low effort keeps it quick and cheap.
             output_config={"effort": "low"},
             # If a request is declined, the API retries it on a suitable model in the same call.
             betas=["server-side-fallback-2026-07-01"],
@@ -119,5 +198,9 @@ def suggest_with_ai(kind: FileKind, partner: str, profiles: list[ColumnProfile])
     if response.stop_reason == "max_tokens" or response.parsed_output is None:
         raise AISuggestionError("The AI's answer was incomplete.")
     usage = response.usage
-    log.info("AI mapping: %s input, %s output tokens", usage.input_tokens, usage.output_tokens)
+    log.info(
+        "AI mapping (anthropic): %s input, %s output tokens",
+        usage.input_tokens,
+        usage.output_tokens,
+    )
     return response.parsed_output

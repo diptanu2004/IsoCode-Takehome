@@ -52,7 +52,7 @@ with evidence attached.
 | Frontend | React, TypeScript, Vite, TanStack Query and Table, Tailwind CSS |
 | Backend | Python 3.12, FastAPI, Pydantic, SQLAlchemy Core, psycopg 3, Alembic, Polars |
 | Database | PostgreSQL 16 |
-| AI | Claude API (structured outputs), with a rule-based fallback |
+| AI | Groq (`openai/gpt-oss-120b`, strict structured outputs), with a rule-based fallback; Anthropic as an option |
 | Hosting | One Docker container on Render, with Neon Postgres |
 
 The reasons for each choice are in [TDD §5](docs/TDD.md#5-architecture).

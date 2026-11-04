@@ -12,7 +12,7 @@ How to run Settle on your own machine and how to deploy it.
 |---|---|
 | App | One Docker container. FastAPI serves the API under `/api` and the built React app on every other path. A background worker thread in the same process handles uploads. |
 | Database | PostgreSQL 16. Neon in production; Docker Compose locally. |
-| AI (optional) | The Claude API, used only for column-mapping suggestions. Without a key, the app uses rule-based suggestions instead. |
+| AI (optional) | Groq's API (or Anthropic's), used only for column-mapping suggestions. Without a key, the app uses rule-based suggestions instead. |
 
 Nothing else is needed: no Redis, no object storage, no separate worker
 service.
@@ -36,8 +36,10 @@ Copy `.env.example` to `.env` and fill it in. Never commit `.env`.
 | `DATABASE_URL` | Yes | `postgresql://recon:recon@localhost:5433/recon` | Postgres connection. Neon URLs need `?sslmode=require` |
 | `SESSION_SECRET` | Yes | 64 random hex characters | Signs session and CSRF tokens. Generate one with `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `COOKIE_SECURE` | Yes in production | `true` | Sends cookies only over HTTPS. Set `false` for local HTTP |
-| `ANTHROPIC_API_KEY` | No | `sk-ant-…` | Turns on AI mapping suggestions |
-| `LLM_MODEL` | No | `claude-opus-5-5` | Model used for mapping suggestions |
+| `LLM_PROVIDER` | No | `groq` | `groq` (default) or `anthropic` |
+| `GROQ_API_KEY` | No | `gsk_…` | Turns on AI mapping suggestions when the provider is Groq. Free key at console.groq.com |
+| `ANTHROPIC_API_KEY` | No | `sk-ant-…` | Same, when the provider is Anthropic |
+| `LLM_MODEL` | No | empty | Leave empty for the provider default (`openai/gpt-oss-120b` / `claude-opus-5-5`) |
 | `SEED_EXEC_EMAIL` / `SEED_EXEC_PASSWORD` | For seeding | | Demo finance executive |
 | `SEED_COFOUNDER_EMAIL` / `SEED_COFOUNDER_PASSWORD` | For seeding | | Demo co-founder |
 | `MAX_UPLOAD_MB` | No | `50` | Largest file accepted |
@@ -95,7 +97,9 @@ cd ../frontend
 npm test
 ```
 
-Tests that call the real Claude API run only when `ANTHROPIC_API_KEY` is set.
+Tests never call the AI provider (they set `AI_ENABLED=false`), except one accuracy check
+that runs only when the provider's key is in `.env`. To score the AI yourself:
+`uv run python -m scripts.eval_mapping --ai`.
 Without it, those tests use a stubbed response.
 
 ## Deploy to production (Render + Neon)
@@ -107,7 +111,7 @@ Without it, those tests use a stubbed response.
    - Dockerfile: the one at the repository root;
    - health check path: `/api/health`.
 3. **Environment.** In the service settings, set `DATABASE_URL`,
-   `SESSION_SECRET` and `COOKIE_SECURE=true`. Add `ANTHROPIC_API_KEY` too if
+   `SESSION_SECRET` and `COOKIE_SECURE=true`. Add `GROQ_API_KEY` too if
    you want AI suggestions.
 4. **Deploy.** The container runs `alembic upgrade head` before it starts
    serving, so the schema is always current.
@@ -147,6 +151,6 @@ benchmark in the TDD states which instance type it was measured on.
 |---|---|---|
 | Sign-in works locally but not in production | `COOKIE_SECURE` does not match the protocol | `true` on HTTPS, `false` on local HTTP |
 | `SSL connection is required` | Neon URL is missing `sslmode` | Add `?sslmode=require` |
-| Mapping shows "AI unavailable" | No `ANTHROPIC_API_KEY`, or the call failed | Expected without a key; otherwise check the logs |
+| Mapping shows "AI unavailable" | No key for the chosen `LLM_PROVIDER`, or the call failed | Expected without a key; otherwise check the logs |
 | Upload stuck in `queued` | The worker thread is not running | Check the startup logs; restart the service |
 | Large upload rejected | `MAX_UPLOAD_MB` is too low | Raise it in the environment |

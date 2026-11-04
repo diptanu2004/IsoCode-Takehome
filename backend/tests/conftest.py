@@ -12,6 +12,7 @@ os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ["SESSION_SECRET"] = "test-only-secret-" + "x" * 40
 os.environ["COOKIE_SECURE"] = "false"
 os.environ["RUN_WORKER"] = "false"  # tests run uploads themselves
+os.environ["AI_ENABLED"] = "false"  # never call a paid API by accident; see test_mapping_eval
 
 import pytest  # noqa: E402
 from alembic import command  # noqa: E402
