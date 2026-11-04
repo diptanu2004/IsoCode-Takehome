@@ -113,3 +113,25 @@ def test_model_follows_the_provider_unless_set(monkeypatch):
     assert settings.llm_model_name == "claude-opus-5-5"
     monkeypatch.setattr(settings, "llm_model", "openai/gpt-oss-20b")
     assert settings.llm_model_name == "openai/gpt-oss-20b"
+
+
+class FlakyGroq(FakeGroq):
+    """Fails with Groq's json_validate_failed the first time, then answers."""
+
+    calls = 0
+
+    def _create(self, **request):
+        FlakyGroq.calls += 1
+        if FlakyGroq.calls == 1:
+            response = SimpleNamespace(status_code=400, headers={}, request=None)
+            raise llm.groq.BadRequestError(
+                "json_validate_failed: Failed to generate JSON", response=response, body=None
+            )
+        return super()._create(**request)
+
+
+def test_groq_invalid_json_is_retried_once(groq_on, monkeypatch):
+    FlakyGroq.calls = 0
+    monkeypatch.setattr(llm.groq, "Groq", FlakyGroq)
+    proposal = suggest_with_ai(FileKind.SETTLEMENT, "Marketplace 1", PROFILES)
+    assert FlakyGroq.calls == 2 and proposal.fields[0].column == "Fee: Commission"

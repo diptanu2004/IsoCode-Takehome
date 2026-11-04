@@ -118,37 +118,51 @@ def _strict_schema(model: type[BaseModel]) -> dict:
     return close(model.model_json_schema())
 
 
+GROQ_ATTEMPTS = 2  # strict decoding still occasionally emits broken JSON; one retry fixes it
+
+
 def _ask_groq(settings, prompt: str) -> MappingProposal:
     client = groq.Groq(api_key=settings.groq_api_key, timeout=TIMEOUT_SECONDS, max_retries=1)
-    try:
-        response = client.chat.completions.create(
-            model=settings.llm_model_name,
-            messages=[
-                {"role": "system", "content": _SYSTEM},
-                {"role": "user", "content": prompt},
-            ],
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "mapping_proposal",
-                    "strict": True,
-                    "schema": _strict_schema(MappingProposal),
-                },
+    request = {
+        "model": settings.llm_model_name,
+        "messages": [
+            {"role": "system", "content": _SYSTEM},
+            {"role": "user", "content": prompt},
+        ],
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "mapping_proposal",
+                "strict": True,
+                "schema": _strict_schema(MappingProposal),
             },
-            # Choosing columns is classification-like work; low effort keeps it quick and cheap.
-            reasoning_effort="low",
-            max_completion_tokens=4000,
-            temperature=0,
-        )
-    except groq.APITimeoutError as exc:
-        raise AISuggestionError("The AI took too long to answer.") from exc
-    except groq.RateLimitError as exc:
-        raise AISuggestionError("The AI service is busy right now.") from exc
-    except groq.APIStatusError as exc:
-        log.warning("AI mapping request failed: %s", exc)
-        raise AISuggestionError("The AI service returned an error.") from exc
-    except groq.APIConnectionError as exc:
-        raise AISuggestionError("Couldn't reach the AI service.") from exc
+        },
+        # Choosing columns is classification-like work; low effort keeps it quick and cheap.
+        "reasoning_effort": "low",
+        "max_completion_tokens": 4000,
+        "temperature": 0,
+    }
+    for attempt in range(1, GROQ_ATTEMPTS + 1):
+        try:
+            response = client.chat.completions.create(**request)
+            break
+        except groq.BadRequestError as exc:
+            # Groq rejects its own malformed output with json_validate_failed; that's random,
+            # so ask again once before giving up.
+            if "json_validate_failed" in str(exc) and attempt < GROQ_ATTEMPTS:
+                log.info("AI mapping: Groq produced invalid JSON, retrying")
+                continue
+            log.warning("AI mapping request failed: %s", str(exc)[:300])
+            raise AISuggestionError("The AI service returned an error.") from exc
+        except groq.APITimeoutError as exc:
+            raise AISuggestionError("The AI took too long to answer.") from exc
+        except groq.RateLimitError as exc:
+            raise AISuggestionError("The AI service is busy right now.") from exc
+        except groq.APIStatusError as exc:
+            log.warning("AI mapping request failed: %s", str(exc)[:300])
+            raise AISuggestionError("The AI service returned an error.") from exc
+        except groq.APIConnectionError as exc:
+            raise AISuggestionError("Couldn't reach the AI service.") from exc
 
     choice = response.choices[0]
     if choice.finish_reason == "length" or not choice.message.content:

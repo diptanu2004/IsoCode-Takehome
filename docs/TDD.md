@@ -39,7 +39,7 @@ Headline results (**TBD**, measured on the deployed build):
 |---|---|---|
 | 1 lakh-row file, upload to finished matching | < 60 s | TBD |
 | Orders auto-matched on seed data | ≥ 98% | TBD |
-| AI mapping accuracy on the changed-format test set | TBD | TBD |
+| AI mapping accuracy on unfamiliar layouts (57 fields) | ≥ 90% | 100% with AI (rules alone: 82%) |
 
 ## 2. Problem and goals
 
@@ -575,7 +575,12 @@ after the format changes. Matching and expected amounts stay rule-based.
   values are never sent.
 - **Cost:** one call per *new partner format*, not per file. A suggestion is
   stored with the upload, so reopening the screen doesn't call the AI again.
-  **TBD:** measured tokens and time per call (needs a Groq key).
+  Measured on the six fixture layouts: 2.1–2.8 s per call, about 1,000–1,900
+  input and 260–820 output tokens. That is within Groq's free tier, and well
+  under a cent per new format at paid rates.
+- **Retry:** strict mode occasionally still returns malformed JSON, which Groq
+  rejects with `json_validate_failed`. That happened in testing, so the call is
+  retried once before falling back to rules.
 
 ### 9.3 When the AI is wrong, unsure or unavailable
 
@@ -598,9 +603,17 @@ after the format changes. Matching and expected amounts stay rule-based.
   below the review line, so the screen marks them **Check**. 8 are left for a
   person to map. A test enforces the property that matters most: the rules
   are **never confidently wrong**.
-- **Rules and AI:** `scripts/eval_mapping.py --ai` and a test that runs only
-  when `GROQ_API_KEY` is in `.env`, with a target of 90% and at most one
-  confidently wrong field. **TBD:** results (needs an API key).
+- **Rules and AI** (Groq, `openai/gpt-oss-120b`): 57 of 57 fields right
+  (100%), with nothing wrong and nothing left unmapped. The AI closed every gap
+  the rules left, such as "Mkt Fee" → commission, "Credited Amt" → net paid and
+  "Consignment No" → AWB. `scripts/eval_mapping.py --ai` reproduces this, and a
+  test that runs only when `GROQ_API_KEY` is in `.env` requires at least 90%,
+  with at most one confidently wrong field.
+- **Failures seen during testing:** one free-tier rate limit and one
+  malformed-JSON response. Both fell back to rules as designed, and the second
+  is now retried first. Six layouts is a small set, so 100% is not a promise
+  that the AI is always right. That is why every mapping is still previewed
+  and approved by a person.
 - **Without a key**, tests cover merging, agreement, disagreement, invented
   columns, failures and reuse of a saved layout, using a stubbed AI response.
 - **On the known formats** (the 11 seed layouts and Marketplace 1's changed

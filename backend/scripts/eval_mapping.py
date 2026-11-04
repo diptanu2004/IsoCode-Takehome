@@ -8,12 +8,15 @@ Prints per case: fields right, wrong (a confident wrong pick is the costly kind)
 """
 
 import argparse
+import time
 from dataclasses import dataclass
 
 from app.mapping.fingerprint import header_fingerprint
 from app.mapping.profile import profile_table
 from app.mapping.suggest import REVIEW_BELOW, build_suggestion
 from scripts.mapping_fixtures import CASES, Case, table_for
+
+PAUSE_SECONDS = 4
 
 
 @dataclass
@@ -66,7 +69,9 @@ def main() -> None:
     args = parser.parse_args()
 
     total = Score()
-    for case in CASES:
+    for i, case in enumerate(CASES):
+        if args.ai and i:
+            time.sleep(PAUSE_SECONDS)  # stay inside free-tier rate limits
         s, notes = score(case, args.ai)
         for k in ("right", "wrong", "wrong_confident", "missed"):
             setattr(total, k, getattr(total, k) + getattr(s, k))
