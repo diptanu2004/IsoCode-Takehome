@@ -21,7 +21,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from app.auth.passwords import hash_password
 from app.config import REPO_ROOT
 from app.db import get_engine
-from app.enums import MappingSource, Role
+from app.enums import MappingSource, Role, UploadStatus
 from app.ingest.pipeline import UploadRejected, process_upload, register_upload
 from app.mapping.fingerprint import header_fingerprint
 from app.schema import (
@@ -193,7 +193,12 @@ def load_sample_files(data_dir: Path) -> list[tuple[str, str, dict]]:
         with get_engine().begin() as conn:
             try:
                 upload_id = register_upload(
-                    conn, source_ids[fmt.source_name], fmt.filename, path.read_bytes(), uploader
+                    conn,
+                    source_ids[fmt.source_name],
+                    fmt.filename,
+                    path.read_bytes(),
+                    uploader,
+                    status=UploadStatus.LOADING,  # processed here, not by a running worker
                 )
             except UploadRejected:
                 results.append((fmt.filename, "already loaded", {}))

@@ -123,7 +123,10 @@ function MappingEditor({ review, uploadId }: { review: Review; uploadId: number 
       {
         onSuccess: (result) =>
           navigate("/uploads", {
-            state: { notice: `Saved as layout version ${result.version}. ${review.upload.filename} is loading now.` },
+            state: {
+              notice: `Saved as layout version ${result.version}. ${review.upload.filename} is loading now.`,
+              uploadId,
+            },
           }),
       },
     );

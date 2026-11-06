@@ -52,9 +52,18 @@ def upload_path(upload_id: int, filename: str) -> Path:
 
 
 def register_upload(
-    conn: Connection, source_id: int, filename: str, content: bytes, user_id: int | None
+    conn: Connection,
+    source_id: int,
+    filename: str,
+    content: bytes,
+    user_id: int | None,
+    status: UploadStatus = UploadStatus.QUEUED,
 ) -> int:
-    """Store the file and queue it. Refuses a file that was already loaded."""
+    """Store the file and queue it. Refuses a file that was already loaded.
+
+    A caller that will process the file itself passes status=LOADING, so a running worker can't
+    pick up the same upload.
+    """
     digest = hashlib.sha256(content).hexdigest()
     earlier = conn.execute(
         select(uploads.c.filename, uploads.c.created_at).where(
@@ -74,6 +83,8 @@ def register_upload(
             sha256=digest,
             size_bytes=len(content),
             uploaded_by=user_id,
+            status=status.value,
+            started_at=datetime.now(UTC) if status != UploadStatus.QUEUED else None,
         )
         .returning(uploads.c.id)
     ).scalar_one()

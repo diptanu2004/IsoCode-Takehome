@@ -20,7 +20,11 @@ const ACCEPT = ".csv,.xlsx";
 export function Uploads() {
   useTitle("Uploads");
   const { data: me } = useMe();
-  const notice = (useLocation().state as { notice?: string } | null)?.notice;
+  const uploads = useUploads();
+  const flash = useLocation().state as { notice?: string; uploadId?: number } | null;
+  const flashed = uploads.data?.find((u) => u.id === flash?.uploadId);
+  // "Is loading now" is only true while it's loading; the history row takes over after that.
+  const notice = flashed && isInProgress(flashed) ? flash?.notice : null;
   return (
     <>
       <PageHeader
@@ -336,7 +340,7 @@ function UploadHistory() {
                     </div>
                   </td>
                   <td className="num px-4 py-3 text-right">{u.row_count == null ? "—" : formatCount(u.row_count)}</td>
-                  <td className="num px-4 py-3 text-right text-muted">
+                  <td className="num px-4 py-3 text-right whitespace-nowrap text-muted">
                     {seconds == null || !["done", "failed"].includes(u.status) ? "—" : formatSeconds(seconds)}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-muted">
