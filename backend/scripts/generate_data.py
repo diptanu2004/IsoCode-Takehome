@@ -233,7 +233,8 @@ AREAS = (
 
 
 class Generator:
-    def __init__(self, as_of: date, n_orders: int, days: int, seed: int):
+    def __init__(self, as_of: date, n_orders: int, days: int, seed: int, channels=None):
+        self.channels = channels or CHANNEL_SHARE
         self.as_of = as_of
         self.n_orders = n_orders
         self.days = days
@@ -291,7 +292,7 @@ class Generator:
 
     def build_orders(self) -> None:
         r = self.rng
-        channels, shares = zip(*CHANNEL_SHARE.items(), strict=True)
+        channels, shares = zip(*self.channels.items(), strict=True)
         for _ in range(self.n_orders):
             channel = r.choices(channels, shares)[0]
             units = r.choices((1, 2, 3), (83, 15, 2))[0]
@@ -526,10 +527,11 @@ class Generator:
         else:
             return None
 
-        if planted == "unpaid_settlement" and past_due:
+        owed = expected_net > 0  # a returned order nets to charges: nothing is owed to us
+        if planted == "unpaid_settlement" and past_due and owed:
             self._truth(o, o.channel, "unpaid_past_due", expected_net, "no settlement line")
             return "unpaid_past_due"
-        if planted == "missing_order_id" and past_due and o.channel in MARKETPLACES:
+        if planted == "missing_order_id" and past_due and owed and o.channel in MARKETPLACES:
             self._truth(
                 o, o.channel, "unpaid_past_due", expected_net, "settlement line has no order ID"
             )
@@ -538,7 +540,7 @@ class Generator:
             pct = round(RATE_CARDS[o.channel]["commission_pct"] + r.uniform(1.5, 4.0), 2)
             charged = pct_of(o.value, pct)
             delta = charged + row["commission"]
-            if delta > 1000:  # above the ₹10 tolerance, so it is a claim
+            if delta > 1100:  # clearly above the ₹10 tolerance, even with rounding, so a claim
                 row["commission"] = -charged
                 self._truth(o, o.channel, "short_paid", delta, f"commission charged at {pct}%")
                 return "short_paid"
@@ -876,8 +878,8 @@ def write_dataset(data: Dataset, out: Path, params: dict) -> dict:
     return manifest
 
 
-def generate(as_of: date, n_orders: int, days: int, seed: int) -> Dataset:
-    gen = Generator(as_of, n_orders, days, seed)
+def generate(as_of: date, n_orders: int, days: int, seed: int, channels=None) -> Dataset:
+    gen = Generator(as_of, n_orders, days, seed, channels)
     gen.build_orders()
     gen.build_reports()
     return gen.data

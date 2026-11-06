@@ -327,10 +327,11 @@ rate_cards = Table(
     ),
 )
 
+# Rewritten in bulk by the matching engine, its only writer; no foreign keys, as for partner_lines.
 order_recon = Table(
     "order_recon",
     metadata,
-    Column("order_id", BigInteger, ForeignKey("orders.id", ondelete="CASCADE"), primary_key=True),
+    Column("order_id", BigInteger, primary_key=True),
     Column("expected_paise", BigInteger, nullable=False),
     Column("received_paise", BigInteger, nullable=False),
     Column("diff_paise", BigInteger, nullable=False),
@@ -340,12 +341,26 @@ order_recon = Table(
     Column("issues", ARRAY(Text), nullable=False, server_default="{}"),
     Column("due_date", Date),
     Column("breakdown", JSONB, nullable=False),
-    Column("channel_rate_card_id", BigInteger, ForeignKey("rate_cards.id")),
-    Column("courier_rate_card_id", BigInteger, ForeignKey("rate_cards.id")),
+    Column("channel_rate_card_id", BigInteger),
+    Column("courier_rate_card_id", BigInteger),
     Column("auto_matched", Boolean, nullable=False, server_default=text("true")),
     Column("computed_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
     _one_of("status", ReconStatus),
     Index(None, "status"),
+)
+
+# Gaps between ₹1 and the tolerance, per component: no claim each, but checked for a pattern
+# (TDD §8.5). Rewritten by the matching engine.
+small_gaps = Table(
+    "small_gaps",
+    metadata,
+    Column("order_id", BigInteger, nullable=False),
+    Column("component", Text, nullable=False),
+    Column("partner_id", BigInteger, nullable=False),
+    Column("month", Date, nullable=False),
+    Column("gap_paise", BigInteger, nullable=False),
+    PrimaryKeyConstraint("order_id", "component"),
+    Index(None, "partner_id", "component", "month"),
 )
 
 # --- Claims ------------------------------------------------------------------
@@ -355,6 +370,7 @@ claims = Table(
     metadata,
     _id(),
     Column("partner_id", BigInteger, ForeignKey("partners.id"), nullable=False),
+    Column("order_id", BigInteger, ForeignKey("orders.id")),  # null for a systematic-gap claim
     Column("type", Text, nullable=False),
     Column("amount_paise", BigInteger, nullable=False),
     Column("status", Text, nullable=False, server_default=ClaimStatus.OPEN.value),
@@ -374,8 +390,28 @@ claims = Table(
     _one_of("component", Component, nullable=True),
     CheckConstraint("amount_paise > 0", name="amount_positive"),
     Index(None, "partner_id", "status"),
+    Index(None, "order_id"),
+    # At most one live claim per order and problem, and per partner, component and month.
+    Index(
+        "uq_claims_live_order",
+        "order_id",
+        "type",
+        unique=True,
+        postgresql_where=text("status IN ('open', 'raised', 'partner_rejected')"),
+    ),
+    Index(
+        "uq_claims_live_systematic",
+        "partner_id",
+        "component",
+        "period_month",
+        unique=True,
+        postgresql_where=text(
+            "type = 'systematic_gap' AND status IN ('open', 'raised', 'partner_rejected')"
+        ),
+    ),
 )
 
+# The orders behind a systematic-gap claim (an ordinary claim names its order directly).
 claim_orders = Table(
     "claim_orders",
     metadata,

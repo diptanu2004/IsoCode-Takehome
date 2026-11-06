@@ -1,6 +1,7 @@
 """Tests run against their own database (recon_test), rebuilt from migrations once per run."""
 
 import os
+import tempfile
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -13,6 +14,8 @@ os.environ["SESSION_SECRET"] = "test-only-secret-" + "x" * 40
 os.environ["COOKIE_SECURE"] = "false"
 os.environ["RUN_WORKER"] = "false"  # tests run uploads themselves
 os.environ["AI_ENABLED"] = "false"  # never call a paid API by accident; see test_mapping_eval
+# Upload IDs restart in the test database; files must not land on the running app's uploads.
+os.environ["UPLOAD_DIR"] = tempfile.mkdtemp(prefix="settle-test-uploads-")
 
 import pytest  # noqa: E402
 from alembic import command  # noqa: E402

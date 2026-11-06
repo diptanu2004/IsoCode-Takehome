@@ -180,7 +180,7 @@ def reset(conn: Connection) -> None:
     conn.execute(text(f"TRUNCATE {names} RESTART IDENTITY CASCADE"))
 
 
-def load_sample_files(data_dir: Path) -> list[tuple[str, str, dict]]:
+def load_sample_files(data_dir: Path, as_of: date) -> list[tuple[str, str, dict]]:
     """Upload every seed file through the real pipeline, orders first, as the co-founder would."""
     results = []
     with get_engine().begin() as conn:
@@ -203,7 +203,7 @@ def load_sample_files(data_dir: Path) -> list[tuple[str, str, dict]]:
             except UploadRejected:
                 results.append((fmt.filename, "already loaded", {}))
                 continue
-        status = process_upload(upload_id)
+        status = process_upload(upload_id, as_of)
         with get_engine().begin() as conn:
             stats = conn.execute(select(uploads.c.stats).where(uploads.c.id == upload_id)).scalar()
         results.append((fmt.filename, str(status), stats))
@@ -241,7 +241,7 @@ def main() -> None:
     dataset = generate(args.as_of, args.orders, days=60, seed=7)
     write_dataset(dataset, data_dir, {"as_of": args.as_of.isoformat(), "seed": 7, "days": 60})
     print(f"Generated {len(dataset.orders):,} orders into {data_dir}. Loading:")
-    for filename, status, stats in load_sample_files(data_dir):
+    for filename, status, stats in load_sample_files(data_dir, args.as_of):
         print(f"  {filename:38} {status:14} {stats}")
     print(f"Demo files to upload by hand are in {data_dir / 'demo'}.")
 
