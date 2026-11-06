@@ -9,11 +9,14 @@ import logging
 import threading
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import text
+from sqlalchemy import select, text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.db import get_engine
 from app.enums import UploadStatus
 from app.ingest.pipeline import process_upload
+from app.recon.engine import match_pending, today
+from app.schema import app_meta
 
 log = logging.getLogger(__name__)
 
@@ -75,20 +78,37 @@ def run_one() -> int | None:
     return upload_id
 
 
+def sweep_if_new_day() -> bool:
+    """Once a day, re-check orders waiting on a date: time alone can make a payment overdue."""
+    day = today().isoformat()
+    with get_engine().begin() as conn:
+        last = conn.execute(select(app_meta.c.value).where(app_meta.c.key == "swept_on")).scalar()
+        if last == day:
+            return False
+        match_pending(conn)
+        conn.execute(
+            pg_insert(app_meta)
+            .values(key="swept_on", value=day)
+            .on_conflict_do_update(index_elements=["key"], set_={"value": day})
+        )
+    return True
+
+
 class Worker(threading.Thread):
     def __init__(self) -> None:
         super().__init__(name="upload-worker", daemon=True)
-        self._stop = threading.Event()
+        self._stopping = threading.Event()
 
     def run(self) -> None:
         requeue_stuck()
-        while not self._stop.is_set():
+        while not self._stopping.is_set():
             try:
                 if run_one() is None:
-                    self._stop.wait(IDLE_SECONDS)
+                    sweep_if_new_day()
+                    self._stopping.wait(IDLE_SECONDS)
             except Exception:  # never let the thread die; the database may be restarting
                 log.exception("Upload worker error")
-                self._stop.wait(5)
+                self._stopping.wait(5)
 
     def stop(self) -> None:
-        self._stop.set()
+        self._stopping.set()
