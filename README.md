@@ -40,7 +40,8 @@ with evidence attached.
 - [x] Frontend shell: sign-in, role-aware navigation
 - [x] Upload pipeline and Uploads screen (bulk load, duplicate and overlap safety, rejected-row download)
 - [x] Column mapping: rules + AI suggestions, 20-row preview, approval, versions, rollback
-- [ ] Rate cards and matching engine, with benchmark
+- [x] Matching engine: expected amounts from rate cards, statuses, automatic claims; 3,042 of 3,042 planted problems found; 1 lakh rows in about 40 s
+- [ ] Rate cards screen
 - [ ] Reconciliation and claims screens, evidence export
 - [ ] Overview (money at risk, TCS/TDS)
 - [ ] Deployed

@@ -37,8 +37,9 @@ Headline results (**TBD**, measured on the deployed build):
 
 | Measure | Target | Result |
 |---|---|---|
-| 1 lakh-row file, upload to finished matching | < 60 s | TBD |
-| Orders auto-matched on seed data | ≥ 98% | TBD |
+| 1 lakh-row file, picked up to matching finished | < 60 s | 39.9 s CSV, 42.3 s Excel (laptop; §10) |
+| Planted problems found on the 60k-order seed | all | 3,042 of 3,042: none missed, none invented (§13) |
+| Orders auto-matched on seed data [A1] | ≥ 98% | 99.94%, though seed IDs are clean, so real files will score lower |
 | AI mapping accuracy on unfamiliar layouts (57 fields) | ≥ 90% | 100% with AI (rules alone: 82%) |
 
 ## 2. Problem and goals
@@ -229,9 +230,10 @@ erDiagram
 | `partner_lines` | upload_id, row_no, partner_id, order_ref, awb, order_id (once resolved), component, amount_paise, txn_date, reference | One row per money component per order (§8.1) |
 | `return_scans` | upload_id, row_no, awb, order_ref, scanned_at, condition | Warehouse receipt scans |
 | `rate_cards` | partner_id, version, effective_from, effective_to, rules (jsonb) | Matching uses the version in force on the order date |
-| `order_recon` | order_id, expected_paise, received_paise, diff_paise, tcs_paise, tds_paise, status, issues[], due_date, breakdown (jsonb), rate_card_id | The matching result. The breakdown holds expected vs actual for each component |
-| `claims` | partner_id, type, amount_paise, status, recovered_paise, partner_ref, opened_at | Status runs open → raised → partner_rejected, then ends as recovered, written_off or auto_resolved |
-| `claim_orders` | claim_id, order_id, amount_paise | One row for an ordinary claim; many for a systematic-gap claim |
+| `order_recon` | order_id, expected_paise, received_paise, diff_paise, tcs_paise, tds_paise, status, issues[], due_date, breakdown (jsonb), rate card IDs | The matching result, rewritten in bulk, so no foreign keys. The breakdown holds expected vs actual for each component |
+| `small_gaps` | order_id, component, partner_id, month, gap_paise | Gaps between ₹1 and the tolerance, per component, for the pattern check (§8.5) |
+| `claims` | partner_id, order_id (null for a systematic gap), type, amount_paise, status, recovered_paise, partner_ref, component, period_month, aging_from | Status runs open → raised → partner_rejected, then ends as recovered, written_off or auto_resolved. Unique indexes allow one live claim per order and problem, and per partner, component and month |
+| `claim_orders` | claim_id, order_id, amount_paise | The orders behind a systematic-gap claim |
 | `claim_events` | claim_id, actor_id, from_status, to_status, note, at | Claim history |
 | `match_suggestions` | partner_line_id, candidate_order_id, score, reasons, status | Stretch: the review queue for rows with no order ID |
 | `audit_log` | actor_id, action, entity, entity_id, before, after, at | Every mapping approval, rate-card edit, claim change and role change |
@@ -289,7 +291,8 @@ Rules that apply across the model:
      downloaded with the reason for each.
 6. Rows are `COPY`-ed into staging tables and upserted into `source_rows`,
    `orders`, `partner_lines` or `return_scans`.
-7. Matching re-runs for the orders this upload touched (§8). Then claims are
+7. Matching re-runs for the orders this upload touched, plus that partner's
+   pending orders (§8). Then claims are
    refreshed.
 8. The temporary file is deleted. The upload shows its row counts, error count
    and the time taken by each stage.
@@ -353,7 +356,7 @@ evidence.
 | `freight_return` | Courier | Rate card (return to origin) | Freight invoice or remittance deduction |
 | `cod_fee` | Courier | Rate card: max(minimum, % of value) | Remittance deduction or invoice |
 | `tcs`, `tds` | Marketplace, quick-commerce | Not expected; taken as reported [A4] | Settlement. **Kept out of the difference** |
-| `adjustment` | Any | 0 | Any other line, such as a claw-back. Counted in Received |
+| `adjustment` | Any | 0 | Any other line, such as a claw-back. Counted in Received. Where a file states a net amount, money the listed parts don't explain becomes an adjustment too: a partner can short-pay without a column for it |
 
 ### 8.2 Expected amount for each scenario
 
@@ -398,12 +401,12 @@ order shows its most severe open issue.
 
 | Priority | Status | Rule | Claimed from | Claim amount |
 |---|---|---|---|---|
-| 1 | **Return not received** | The courier marks the order returned to the warehouse, there is no warehouse scan, and the return window has passed [A10] | Courier | Order value [A11] |
-| 2 | **Unpaid past due** | A payment is expected, none has arrived, and today is after the due date (delivered date + partner's settlement cycle [A12]) | Channel partner, or courier for COD | Expected amount |
+| 1 | **Return not received** | The order is marked returned to the warehouse, there is no warehouse scan, the return window has passed [A10], and the warehouse's scans have reached that date [A25] | Courier, or the channel for marketplace orders | Order value [A11] |
+| 2 | **Unpaid past due** | A payment is expected, none has arrived, today is after the due date (delivered date + partner's settlement cycle [A12]), and that partner's reports have reached the due date [A25] | Channel partner, or courier for COD | Expected amount |
 | 3 | **Short-paid** | Money arrived, but the non-freight components fall short by more than the tolerance | Channel partner or courier | The shortfall |
 | 4 | **Freight overcharged** | Courier charges exceed the rate-card charges by more than the tolerance | Courier | The excess |
 | 5 | Overpaid | Received exceeds expected by more than the tolerance | No claim; shown for information | — |
-| 6 | Pending | Nothing received yet and not yet due; or a return still inside its window | — | — |
+| 6 | Pending | Not delivered yet; not yet due; the partner's reports don't reach the due date yet; charges not billed yet; or a return still inside its window | — | — |
 | 7 | Within tolerance | The gap is between ₹1 and the tolerance (§8.5) | Rolled up, see §8.5 | — |
 | 8 | Settled | The gap is under ₹1 [A13] | — | — |
 
@@ -414,6 +417,11 @@ The buckets are 0–7, 8–15, 16–30, 31–60 and 60+ days.
 
 **Money at risk** is the total of claims that are open, raised or rejected by
 the partner. It never includes TCS or TDS.
+
+**Time alone changes status.** A payment becomes overdue with no new file, so
+the worker re-checks waiting orders once a day. A partner's file also re-checks
+that partner's pending orders, because a missing payment is exactly an order
+with no line in the file.
 
 ### 8.5 The ₹10 tolerance and systematic gaps
 
@@ -627,48 +635,39 @@ matched automatically, as the brief requires.
 
 ## 10. Performance: 1 lakh rows in under a minute
 
-Each stage has a time budget. The full 1 lakh-row benchmark is **TBD** (day 4).
+Measured with `scripts/benchmark.py` on a laptop, with Postgres 16 in Docker
+Desktop on Windows. Times run from the file being picked up to matching and
+claims being finished. **TBD:** the same run on the deployed tier.
 
-Measured so far, on the 60k-order seed (laptop, Postgres 16 in Docker
-Desktop on Windows):
+| File | Rows | Ledger lines | Read | Clean | Store rows | Load | Match + claims | **Total** |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Settlement, CSV | 1,00,000 | 5,67,081 | 0.1 s | 0.3 s | 1.9 s | 21.3 s | 16.1 s | **39.9 s** |
+| Settlement, Excel | 1,00,000 | 5,67,081 | 1.5 s | 0.3 s | 2.1 s | 19.6 s | 18.6 s | **42.3 s** |
+| Orders export, CSV | 1,33,337 | none | 0.4 s | 0.5 s | 3.1 s | 7.8 s | 6.2 s | **18.0 s** |
 
-| File | Rows | Lines stored | Total time |
-|---|---:|---:|---:|
-| Orders export | 60,003 | 60,003 orders | 7.4 s |
-| Marketplace 1 settlement | 9,265 | 52,660 | 2.0 s |
-| Courier A freight invoice | 8,713 | 8,713 | 1.7 s |
+All are under the 60 s the brief asks for. On this machine the margin is about
+a third, so a much smaller hosting tier could use it up (§16).
 
-Reading and cleaning a 60k-row file takes under 0.5 s. Nearly all the time is
-in Postgres writes. Two changes measured on this data cut the Marketplace 1
-load from 12 s to 2 s: dropping per-row foreign-key checks on the bulk tables
-(§6), and replacing `INSERT … ON CONFLICT` with an anti-join and a plain
-`INSERT`.
+The design held, but only after three fixes that measurement forced. Each one
+was a query plan going wrong at scale, not a slow language or library:
 
-| Stage | Budget | Measured |
-|---|---:|---:|
-| Find the header row, fingerprint, check for personal data | 1 s | TBD |
-| Parse and normalise the whole file (Polars, whole columns) | 8 s | TBD |
-| `COPY` into staging tables | 5 s | TBD |
-| Upsert into the main tables | 6 s | TBD |
-| Re-match the affected orders (set-based SQL) | 10 s | TBD |
-| Refresh claims and run the systematic-gap check | 5 s | TBD |
-| **Total, file received to matching finished** | **≤ 35 s** (requirement < 60 s) | TBD |
+| Problem found | Cost | Fix | After |
+|---|---:|---|---:|
+| Foreign keys checked by a trigger per row, and a text hash compared with locale rules | 12 s for 52k lines | No foreign keys on bulk tables (§6), `uuid` keys, byte-wise ID comparison | 1.8 s |
+| Checking for duplicates inside the `INSERT`: planned against a table that looked empty, it scanned a table that kept growing | 114 s for 1.1 lakh lines; over 9 minutes for 5.7 lakh | Remove known keys from staging first, then a plain `INSERT` that never reads its target | 2.3 s |
+| Matching as one large statement, so the planner guessed row counts | 21 s for 60k orders; 20 minutes when I tried materializing the lookups | Lookups and per-order actuals become temp tables with fresh statistics; `ANALYZE` after each bulk load | 3.4 s |
 
 What keeps it fast:
 
-- No row-by-row Python.
-- Rows are bulk-loaded with `COPY`, not inserted one at a time.
-- Only orders touched by the upload are re-matched.
-- All money is integer arithmetic.
-- The join columns are indexed.
+- No row-by-row Python: Polars cleans whole columns, and Postgres matches sets.
+- Rows are bulk-loaded with `COPY`.
+- Only affected orders are re-matched: those the file touched, plus that
+  partner's pending orders.
 - The work runs as a background job, so the browser polls for progress and no
   HTTP request can time out.
 
-**How it is measured.** `scripts/benchmark.py --rows 100000` generates files
-shaped like the seed data. It runs the full pipeline against an empty database
-and prints the time for each stage. The results go in the table above, along
-with the machine used and the deployed hosting tier. A smaller version runs in
-the test suite to catch slowdowns.
+**Keeping it fast.** A small benchmark runs in the test suite, because a bad
+plan shows up even at 5,000 rows.
 
 ## 11. UI and design decisions
 
@@ -780,7 +779,9 @@ Settle **does not store them at all**. That is stronger than masking them.
 | Layer | What is tested |
 |---|---|
 | Unit | <ul><li>Normalisers: IDs, Excel dates, amount formats, sign flags</li><li>Expected-amount calculations for each scenario in §8.2</li><li>Status rules and their priority</li><li>Tolerance bands and the systematic-gap check</li><li>TCS/TDS kept out of the difference</li><li>Rate-card version chosen by order date</li></ul> |
-| Integration | <ul><li>Seed files go through upload → mapping → load → match → claims</li><li>The three sample rows produce exactly the results in §8.8</li><li>Uploading the same file twice is rejected; an overlapping file does not double-count</li><li>A late payment closes its claim automatically</li></ul> |
+| Matching rules | 41 tests with hand-built orders: every scenario in §8.2, each side of the tolerance bands, due dates, backstops, return windows, rate-card versions, claim lifecycle, and the pattern check |
+| Against the answer key | <ul><li>The generator records every problem it plants. Tests require an exact match: every planted problem claimed, with the right partner and amount, and no other claim</li><li>Also holds when the files load in reverse order; re-matching changes nothing</li><li>The three sample rows produce exactly the results in §8.8</li><li>Late payments close their claims</li></ul> |
+| Integration | <ul><li>Seed files go through upload → mapping → load → match → claims</li><li>Uploading the same file twice is rejected; an overlapping file does not double-count</li></ul> |
 | Access control | Every protected route × every role → expected 200 or 403 |
 | AI mapping | Schema validation; dropping invented columns; merging with rules; the fallback path (LLM stubbed); accuracy on the fixtures when an API key is present |
 | Performance | A benchmark test (small in CI, 1 lakh rows run separately) that fails if the time budget is exceeded |
@@ -794,7 +795,7 @@ noted.
 
 | # | Assumption | Why | How to change |
 |---|---|---|---|
-| A1 | An order counts as auto-matched when every partner row about it was linked by exact key (after normalisation) and its status needed no manual action. Rate = auto-matched orders ÷ orders with at least one partner row | The brief gives the 98% target but no definition | Definition in code; reported on the Overview |
+| A1 | An order counts as auto-matched when every partner row about it was linked by exact key (after normalisation) and its status needed no manual action. Rate = those orders ÷ (those orders + partner rows that match no order) | The brief gives the 98% target but no definition | Definition in code; reported on the Overview |
 | A2 | Payment-gateway settlements for prepaid website orders are out of scope | Sample row ORD-W-204377 shows only freight for a prepaid website order; no payment gateway is named in the brief | Add a gateway file kind |
 | A3 | An upload with more than 5% failed rows stops and sends the user back to mapping | A failure rate that high usually means a wrong mapping, not bad data | Setting |
 | A4 | TCS and TDS are taken as reported in settlement files, at order level | The brief says they are deducted, not how they appear | Open question 1 |
@@ -818,6 +819,7 @@ noted.
 | A22 | One orders export covers every channel and includes the AWB, courier zone, declared weight, delivery status and delivery or return dates | Needed to link courier files and compute freight | Open question 5 |
 | A23 | Seed data: website 40% of orders, marketplaces 45%, quick-commerce 15%; returns 18% of website COD (refused), 6% of website prepaid, 10% marketplace, 1.5% quick-commerce; 2% cancelled. Marketplaces settle a returned order once, after the return completes | Not in the brief; chosen to give realistic volumes in each status | `scripts/generate_data.py` |
 | A24 | Seed TCS is 0.5% of the value before 5% GST, and TDS is 0.1% of value | Illustrative only; the app always uses the amounts the partner reports | Seed data |
+| A25 | Nobody is called late until their reports reach the due date. Backstops catch a partner or warehouse that stopped sending reports: 30 days past due for payments, 7 days past the window for returns. With no report from them at all, an order stays pending | Without this, loading the orders file first opened 38,157 false "unpaid" claims that closed themselves once settlements arrived | Constants in `app/recon/engine.py` |
 
 ## 15. What was cut, and what comes next
 
@@ -852,6 +854,12 @@ noted.
   uploaded again.
 - The worker processes one job at a time. That is enough for one company, but
   it would not scale to many.
+- The answer key shows the engine does what these rules say. It can't show the
+  rules match real partner statements: the generator and the engine share my
+  reading of the brief, so any misreading would pass. Open questions (§17) are
+  where that risk sits.
+- Rolling back a layout changes how new files are read. It doesn't yet re-map
+  files already loaded with the replaced version, which §9.1 step 8 describes.
 - Free hosting tiers have little CPU and go to sleep when idle. The first
   request after idle is slow, and benchmark results depend on the tier (§10).
 
