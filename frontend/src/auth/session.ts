@@ -69,8 +69,9 @@ export function useSignOut() {
   return useMutation({
     mutationFn: () => api<void>("/auth/logout", { method: "POST" }),
     onSettled: () => {
-      queryClient.clear();
+      // Not queryClient.clear(): that detaches the screens watching "me", so they'd never redirect.
       queryClient.setQueryData(ME_KEY, null);
+      queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== ME_KEY[0] });
     },
   });
 }
