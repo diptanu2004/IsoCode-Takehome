@@ -8,11 +8,13 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import Connection, text
 
 from app.auth import routes as auth_routes
+from app.claims import routes as claim_routes
 from app.config import REPO_ROOT, get_settings
 from app.db import get_conn
 from app.ingest import routes as upload_routes
 from app.ingest.worker import Worker
 from app.mapping import routes as mapping_routes
+from app.recon import routes as recon_routes
 from app.users import routes as user_routes
 
 FRONTEND_DIST = REPO_ROOT / "frontend" / "dist"
@@ -23,6 +25,8 @@ API_ROUTERS = (
     user_routes.router,
     upload_routes.router,
     mapping_routes.router,
+    recon_routes.router,
+    claim_routes.router,
 )
 
 _SECURITY_HEADERS = {
