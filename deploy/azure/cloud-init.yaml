@@ -1,0 +1,12 @@
+#cloud-config
+# First boot of the Ubuntu 24.04 VM: Docker, Compose and the repository.
+package_update: true
+packages:
+  - docker.io
+  - docker-compose-v2
+  - git
+runcmd:
+  - systemctl enable --now docker
+  - usermod -aG docker azureuser
+  - git clone https://github.com/diptanu2004/IsoCode-Takehome.git /opt/settle
+  - chown -R azureuser:azureuser /opt/settle

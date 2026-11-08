@@ -1,0 +1,6 @@
+# HTTPS for the VM's DNS name; Caddy obtains and renews the certificate itself.
+{$SITE_ADDRESS} {
+	encode zstd gzip
+	header Strict-Transport-Security "max-age=31536000"
+	reverse_proxy app:8000
+}

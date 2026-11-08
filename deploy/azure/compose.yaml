@@ -1,0 +1,45 @@
+# Production on one VM: the app image plus Caddy, which terminates HTTPS with a free
+# Let's Encrypt certificate for the VM's DNS name. The database is Neon (DATABASE_URL).
+#
+#   cd /opt/settle/deploy/azure
+#   docker compose up -d --build
+#
+# Settings come from deploy/azure/.env on the VM (never committed): the app's variables
+# (deployment.md) plus SITE_ADDRESS, the VM's DNS name.
+
+services:
+  app:
+    build: ../..
+    env_file: .env
+    environment:
+      COOKIE_SECURE: "true"
+    volumes:
+      - uploads:/app/var/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+
+  caddy:
+    image: caddy:2.10-alpine
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?set SITE_ADDRESS in deploy/azure/.env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  uploads:
+  caddy_data:
+  caddy_config:
