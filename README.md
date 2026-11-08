@@ -8,7 +8,7 @@ paid the right amount. Anything short, late or overcharged becomes a claim
 with evidence attached.
 
 - **Repository:** https://github.com/diptanu2004/IsoCode-Takehome
-- **Live app:** https://settle-6la0.onrender.com (free instance: allow about a minute for the first visit while it wakes; demo logins in the submission's `deployment.md`)
+- **Live app:** https://settle-recon.southeastasia.cloudapp.azure.com (demo logins in the submission's `deployment.md`)
 - **Design document:** [docs/TDD.md](docs/TDD.md)
 - **Run and deploy:** [deployment.md](deployment.md)
 - **Client brief:** [docs/brief.md](docs/brief.md)
@@ -44,9 +44,9 @@ with evidence attached.
 - [x] Reconciliation and Claims screens: order detail with source rows, claim lifecycle, evidence ZIP, raise all
 - [x] Rate cards: versions in plain words, new versions (co-founder) that re-check the affected orders, a flag when a rate seems to have changed
 - [x] Settings: partner terms (re-check on change), people and roles, the audit log
-- [x] Docker image, Render blueprint, demo files
+- [x] Docker image, Azure VM setup (Caddy for HTTPS), Render blueprint, demo files
 - [x] Overview: money at risk by partner and age (cells open the claims), recovered vs ₹30 L, auto-match rate vs 98%, within tolerance, TCS/TDS
-- [x] Deployed on Render + Neon (Singapore); 1 lakh-row settlement file matched in 29.3 s on the live app
+- [x] Deployed on an Azure VM + Neon (Singapore); 1 lakh-row settlement file matched in 29.3 s on a deployed instance (TDD §10)
 
 ## Stack
 
@@ -56,7 +56,7 @@ with evidence attached.
 | Backend | Python 3.12, FastAPI, Pydantic, SQLAlchemy Core, psycopg 3, Alembic, Polars |
 | Database | PostgreSQL 16 |
 | AI | Groq (`openai/gpt-oss-120b`, strict structured outputs), with a rule-based fallback; Anthropic as an option |
-| Hosting | One Docker container on Render, with Neon Postgres |
+| Hosting | One Docker container on an Azure VM behind Caddy (HTTPS), with Neon Postgres |
 
 The reasons for each choice are in [TDD §5](docs/TDD.md#5-architecture).
 

@@ -2,8 +2,7 @@
 
 **GitHub:** https://github.com/diptanu2004/IsoCode-Takehome
 
-**Live app:** https://settle-6la0.onrender.com (free instance: the first visit
-after 15 idle minutes takes about a minute while it wakes)
+**Live app:** https://settle-recon.southeastasia.cloudapp.azure.com
 
 **Demo accounts:** listed in [deployment.md](../deployment.md)
 
@@ -40,7 +39,7 @@ Headline results:
 
 | Measure | Target | Result |
 |---|---|---|
-| 1 lakh-row file, accepted to matching finished | < 60 s | 29.3 s on the deployed app (Render free + Neon); 39.9 s CSV, 42.3 s Excel on a laptop (§10) |
+| 1 lakh-row file, accepted to matching finished | < 60 s | 29.3 s deployed (Render free instance + Neon); 39.9 s CSV, 42.3 s Excel on a laptop (§10) |
 | Planted problems found on the 60k-order seed | all | 3,042 of 3,042: none missed, none invented (§13) |
 | Orders auto-matched on seed data [A1] | ≥ 98% | 99.94%, though seed IDs are clean, so real files will score lower |
 | AI mapping accuracy on unfamiliar layouts (57 fields) | ≥ 90% | 100% with AI (rules alone: 82%) |
@@ -661,10 +660,10 @@ matched automatically, as the brief requires.
 Times run from the file being picked up to matching and claims being
 finished.
 
-**On the deployed app** (8–9 November 2026): Render's free instance in
-Singapore, with Neon's free plan (Postgres 16, Singapore). The files were
-uploaded through the live app as the co-founder, into an empty database, and
-the times are the stage timings the app records for each upload.
+**On a deployed instance** (8–9 November 2026, the first deployment): Render's
+free instance in Singapore, with Neon's free plan (Postgres 16, Singapore).
+The files were uploaded through the live app as the co-founder, into an empty
+database, and the times are the stage timings the app records for each upload.
 
 | File | Rows | Ledger lines | Read | Clean | Store rows | Load | Match + claims | **Total** |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -976,10 +975,12 @@ noted.
   where that risk sits.
 - Rolling back a layout changes how new files are read. It doesn't yet re-map
   files already loaded with the replaced version, which §9.1 step 8 describes.
-- The live demo runs on Render's free instance. It goes to sleep after 15 idle
-  minutes, so the first request afterwards takes about a minute. Once, during
-  setup, it did not wake at all until it was redeployed. A paid instance avoids
-  both; nothing in the app depends on the tier.
+- The live demo runs on one VM. A VM failure takes the app down until it is
+  restarted; there is no second instance. The data is safe in Neon.
+- The first deployment was on Render's free instance. It sleeps after 15 idle
+  minutes, and during setup it twice failed to start a new container with
+  nothing in its logs, so the demo moved to an Azure VM. Nothing in the app
+  depends on the host: it is the same image.
 
 ## 17. Open questions for the client
 
