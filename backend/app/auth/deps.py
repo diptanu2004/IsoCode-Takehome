@@ -17,7 +17,9 @@ CSRF_HEADER = "X-CSRF-Token"
 _SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
 
-def current_user(request: Request, conn: Connection = Depends(get_conn)) -> CurrentUser:
+def current_user(
+    request: Request, conn: Connection = Depends(get_conn, scope="function")
+) -> CurrentUser:
     token = request.cookies.get(SESSION_COOKIE)
     user = sessions.lookup(conn, token) if token else None
     if user is None:

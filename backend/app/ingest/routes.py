@@ -91,7 +91,7 @@ def _get_upload(conn: Connection, upload_id: int) -> UploadOut:
 
 
 @router.get("/sources", dependencies=[Depends(require(Permission.RECON_VIEW))])
-def list_sources(conn: Connection = Depends(get_conn)) -> list[SourceOut]:
+def list_sources(conn: Connection = Depends(get_conn, scope="function")) -> list[SourceOut]:
     last_upload = (
         select(uploads.c.source_id, func.max(uploads.c.created_at).label("at"))
         .group_by(uploads.c.source_id)
@@ -163,7 +163,7 @@ async def create_upload(
     source_id: int = Form(),
     file: UploadFile = File(),
     user: CurrentUser = Depends(_can_upload),
-    conn: Connection = Depends(get_conn),
+    conn: Connection = Depends(get_conn, scope="function"),
 ) -> UploadOut:
     filename = Path(file.filename or "upload").name[:200]
     suffix = Path(filename).suffix.lower()
@@ -187,21 +187,25 @@ async def create_upload(
 
 
 @router.get("/uploads", dependencies=[Depends(require(Permission.RECON_VIEW))])
-def list_uploads(limit: int = 100, conn: Connection = Depends(get_conn)) -> list[UploadOut]:
+def list_uploads(
+    limit: int = 100, conn: Connection = Depends(get_conn, scope="function")
+) -> list[UploadOut]:
     limit = max(1, min(limit, 500))
     rows = conn.execute(_upload_query().order_by(uploads.c.created_at.desc()).limit(limit)).all()
     return [UploadOut.model_validate(r, from_attributes=True) for r in rows]
 
 
 @router.get("/uploads/{upload_id}", dependencies=[Depends(require(Permission.RECON_VIEW))])
-def get_upload(upload_id: int, conn: Connection = Depends(get_conn)) -> UploadOut:
+def get_upload(upload_id: int, conn: Connection = Depends(get_conn, scope="function")) -> UploadOut:
     return _get_upload(conn, upload_id)
 
 
 @router.get(
     "/uploads/{upload_id}/errors.csv", dependencies=[Depends(require(Permission.RECON_VIEW))]
 )
-def rejected_rows(upload_id: int, conn: Connection = Depends(get_conn)) -> Response:
+def rejected_rows(
+    upload_id: int, conn: Connection = Depends(get_conn, scope="function")
+) -> Response:
     upload = _get_upload(conn, upload_id)
     rows = conn.execute(
         select(source_rows.c.row_no, source_rows.c.error, source_rows.c.raw)

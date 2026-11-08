@@ -58,7 +58,10 @@ def _client_ip(request: Request) -> str:
 
 @router.post("/auth/login")
 def login(
-    body: LoginIn, request: Request, response: Response, conn: Connection = Depends(get_conn)
+    body: LoginIn,
+    request: Request,
+    response: Response,
+    conn: Connection = Depends(get_conn, scope="function"),
 ) -> MeOut:
     email = body.email
     ip = _client_ip(request)
@@ -104,7 +107,7 @@ def logout(
     request: Request,
     response: Response,
     _: CurrentUser = Depends(current_user),
-    conn: Connection = Depends(get_conn),
+    conn: Connection = Depends(get_conn, scope="function"),
 ) -> None:
     sessions.revoke(conn, request.cookies[SESSION_COOKIE])
     response.delete_cookie(SESSION_COOKIE)

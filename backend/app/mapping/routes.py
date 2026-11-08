@@ -87,7 +87,7 @@ def _call(fn, *args):
 
 @router.get("/uploads/{upload_id}/mapping", dependencies=[Depends(_can_view)])
 def get_mapping_review(
-    upload_id: int, refresh: bool = False, conn: Connection = Depends(get_conn)
+    upload_id: int, refresh: bool = False, conn: Connection = Depends(get_conn, scope="function")
 ) -> dict:
     """Detected columns, target fields and the suggested mapping for a file in a new format."""
     return _call(service.review, conn, upload_id, refresh)
@@ -95,7 +95,7 @@ def get_mapping_review(
 
 @router.post("/uploads/{upload_id}/mapping/preview", dependencies=[Depends(_can_approve)])
 def preview_mapping(
-    upload_id: int, body: MappingRequest, conn: Connection = Depends(get_conn)
+    upload_id: int, body: MappingRequest, conn: Connection = Depends(get_conn, scope="function")
 ) -> dict:
     """The first 20 rows as they would load, problems per cell, and what blocks approval."""
     return _call(service.preview, conn, upload_id, body.as_request())
@@ -106,14 +106,16 @@ def approve_mapping(
     upload_id: int,
     body: MappingRequest,
     user: CurrentUser = Depends(_can_approve),
-    conn: Connection = Depends(get_conn),
+    conn: Connection = Depends(get_conn, scope="function"),
 ) -> dict:
     """Save the mapping as a new version and queue the file (and any like it) to load."""
     return _call(service.approve, conn, upload_id, body.as_request(), user.id)
 
 
 @router.get("/sources/{source_id}/mappings", dependencies=[Depends(_can_view)])
-def list_mapping_versions(source_id: int, conn: Connection = Depends(get_conn)) -> list[VersionOut]:
+def list_mapping_versions(
+    source_id: int, conn: Connection = Depends(get_conn, scope="function")
+) -> list[VersionOut]:
     return [VersionOut(**v) for v in service.versions(conn, source_id)]
 
 
@@ -122,7 +124,7 @@ def activate_mapping_version(
     source_id: int,
     version_id: int,
     user: CurrentUser = Depends(_can_approve),
-    conn: Connection = Depends(get_conn),
+    conn: Connection = Depends(get_conn, scope="function"),
 ) -> dict:
     """Make a saved version the one used for new files (rollback)."""
     return _call(service.activate, conn, source_id, version_id, user.id)

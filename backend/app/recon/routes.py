@@ -152,7 +152,7 @@ def list_orders(
     sort: Literal["severity", "difference", "date", "value"] = "severity",
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
-    conn: Connection = Depends(get_conn),
+    conn: Connection = Depends(get_conn, scope="function"),
 ) -> OrderPage:
     if status_ and status_ != "problems" and status_ not in _SEVERITY:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Unknown status.")
@@ -191,7 +191,7 @@ def status_counts(
     date_from: date | None = None,
     date_to: date | None = None,
     q: str | None = Query(None, max_length=40),
-    conn: Connection = Depends(get_conn),
+    conn: Connection = Depends(get_conn, scope="function"),
 ) -> list[StatusCount]:
     """Orders and money per status, for the filter chips. Ignores the status filter itself."""
     conditions = _filters(partner_id, date_from, date_to, q)
@@ -212,7 +212,7 @@ def status_counts(
 
 
 @router.get("/orders/{order_pk}", dependencies=[Depends(_can_view)])
-def order_detail(order_pk: int, conn: Connection = Depends(get_conn)) -> dict:
+def order_detail(order_pk: int, conn: Connection = Depends(get_conn, scope="function")) -> dict:
     """One order in full: expected against actual per component, and where each number came from."""
     row = conn.execute(
         select(
@@ -326,7 +326,9 @@ def order_detail(order_pk: int, conn: Connection = Depends(get_conn)) -> dict:
 
 
 @router.get("/lines/{upload_id}/{row_no}", dependencies=[Depends(_can_view)])
-def source_row(upload_id: int, row_no: int, conn: Connection = Depends(get_conn)) -> dict:
+def source_row(
+    upload_id: int, row_no: int, conn: Connection = Depends(get_conn, scope="function")
+) -> dict:
     """The partner's own row, as it was in their file (minus personal data)."""
     row = conn.execute(
         select(

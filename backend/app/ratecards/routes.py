@@ -114,7 +114,7 @@ class NewVersion(BaseModel):
 
 
 @router.get("", dependencies=[Depends(require(Permission.RATE_CARD_VIEW))])
-def list_rate_cards(conn: Connection = Depends(get_conn)) -> list[PartnerCards]:
+def list_rate_cards(conn: Connection = Depends(get_conn, scope="function")) -> list[PartnerCards]:
     priced = {
         r.card: r.orders
         for r in conn.execute(
@@ -211,7 +211,7 @@ def add_version(
     partner_id: int,
     body: NewVersion,
     user: CurrentUser = Depends(_can_edit),
-    conn: Connection = Depends(get_conn),
+    conn: Connection = Depends(get_conn, scope="function"),
 ) -> dict:
     partner = conn.execute(
         select(partners.c.name, partners.c.kind).where(partners.c.id == partner_id)

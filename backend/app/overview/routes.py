@@ -238,7 +238,7 @@ def _taxes(conn: Connection) -> list[PartnerTaxes]:
 
 
 @router.get("", dependencies=[Depends(require(Permission.DASHBOARD_VIEW))])
-def overview(conn: Connection = Depends(get_conn)) -> Overview:
+def overview(conn: Connection = Depends(get_conn, scope="function")) -> Overview:
     as_of = today()
     return Overview(
         as_of=as_of,

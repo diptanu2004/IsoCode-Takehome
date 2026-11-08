@@ -124,7 +124,7 @@ def list_claims(
     q: str | None = Query(None, max_length=40),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
-    conn: Connection = Depends(get_conn),
+    conn: Connection = Depends(get_conn, scope="function"),
 ) -> ClaimPage:
     as_of = today()
     conditions = [claims.c.status.in_(_GROUPS[group])]
@@ -162,7 +162,7 @@ def list_claims(
 
 
 @router.get("/partners", dependencies=[Depends(_can_view)])
-def partner_totals(conn: Connection = Depends(get_conn)) -> list[PartnerTotal]:
+def partner_totals(conn: Connection = Depends(get_conn, scope="function")) -> list[PartnerTotal]:
     """Live claims and money per partner, largest first."""
     totals: dict[int, dict] = {}
     for r in service.claim_counts(conn):
@@ -188,7 +188,7 @@ def partner_totals(conn: Connection = Depends(get_conn)) -> list[PartnerTotal]:
 
 
 @router.get("/{claim_id}", dependencies=[Depends(_can_view)])
-def claim_detail(claim_id: int, conn: Connection = Depends(get_conn)) -> dict:
+def claim_detail(claim_id: int, conn: Connection = Depends(get_conn, scope="function")) -> dict:
     row = conn.execute(_rows_query().where(claims.c.id == claim_id)).one_or_none()
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Claim not found.")
@@ -227,7 +227,7 @@ def act_on_claim(
     claim_id: int,
     body: ClaimAction,
     user=Depends(_can_work),
-    conn: Connection = Depends(get_conn),
+    conn: Connection = Depends(get_conn, scope="function"),
 ) -> dict:
     if body.action == "write_off" and not user.can(Permission.CLAIM_WRITE_OFF):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the co-founder can write off a claim.")
@@ -243,7 +243,9 @@ def act_on_claim(
 
 @router.post("/raise-all")
 def raise_all(
-    body: RaiseAll, user: CurrentUser = Depends(_can_work), conn: Connection = Depends(get_conn)
+    body: RaiseAll,
+    user: CurrentUser = Depends(_can_work),
+    conn: Connection = Depends(get_conn, scope="function"),
 ) -> dict:
     """Raise every open claim with one partner at once, for example with one evidence pack."""
     return {"raised": service.raise_all_open(conn, body.partner_id, user.id, body.partner_ref)}
@@ -251,7 +253,9 @@ def raise_all(
 
 @router.get("/evidence/{partner_id}.zip", dependencies=[Depends(_can_export)])
 def evidence(
-    partner_id: int, group: StatusGroup = "live", conn: Connection = Depends(get_conn)
+    partner_id: int,
+    group: StatusGroup = "live",
+    conn: Connection = Depends(get_conn, scope="function"),
 ) -> Response:
     try:
         filename, content = service.evidence_pack(conn, partner_id, _GROUPS[group], today())
