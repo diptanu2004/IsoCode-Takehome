@@ -608,6 +608,21 @@ def match_all(conn: Connection, as_of: date | None = None) -> dict:
     return {"orders_matched": matched, **_run(conn, as_of or today())}
 
 
+def match_partner(
+    conn: Connection, partner_id: int, since: date | None = None, as_of: date | None = None
+) -> dict:
+    """A partner's orders from `since` on (all of them by default), after its rate card or
+    settings change. Rate cards apply by order date, so earlier orders can't be affected."""
+    select_orders = """
+        SELECT id FROM orders
+        WHERE (channel_partner_id = :partner OR courier_partner_id = :partner)
+          AND order_date >= :since
+    """
+    params = {"partner": partner_id, "since": since or date.min}
+    matched = _reset_todo(conn, select_orders, params)
+    return {"orders_matched": matched, **_run(conn, as_of or today())}
+
+
 def match_pending(conn: Connection, as_of: date | None = None) -> dict:
     """Orders waiting on a date: time alone can turn them into unpaid or missing returns."""
     select_orders = """
