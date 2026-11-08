@@ -227,7 +227,14 @@ export function useSourceRow(uploadId: number, rowNo: number, enabled: boolean) 
   });
 }
 
-export function useClaims(filters: { group?: string; partner_id?: string; type?: string; q?: string; page?: string }) {
+export function useClaims(filters: {
+  group?: string;
+  partner_id?: string;
+  type?: string;
+  age?: string;
+  q?: string;
+  page?: string;
+}) {
   return useQuery({
     queryKey: ["claims", filters],
     queryFn: () => api<Page<ClaimRow> & { total_paise: number }>(`/claims${query({ ...filters })}`),
@@ -251,7 +258,7 @@ function useInvalidateClaims() {
   const queryClient = useQueryClient();
   return () =>
     Promise.all(
-      ["claims", "claim", "claim-partners", "recon-order"].map((key) =>
+      ["claims", "claim", "claim-partners", "recon-order", "overview"].map((key) =>
         queryClient.invalidateQueries({ queryKey: [key] }),
       ),
     );

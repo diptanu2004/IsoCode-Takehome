@@ -22,6 +22,7 @@ _can_work = require(Permission.CLAIM_WORK)
 _can_export = require(Permission.CLAIM_EXPORT)
 
 StatusGroup = Literal["live", "open", "raised", "partner_rejected", "closed"]
+AgeBucket = Literal["0-7", "8-15", "16-30", "31-60", "61+"]  # service.AGE_BUCKETS
 _GROUPS = {
     "live": LIVE,
     "open": [ClaimStatus.OPEN.value],
@@ -119,16 +120,20 @@ def list_claims(
     group: StatusGroup = "live",
     partner_id: int | None = None,
     type_: ClaimType | None = Query(None, alias="type"),
+    age: AgeBucket | None = None,
     q: str | None = Query(None, max_length=40),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     conn: Connection = Depends(get_conn),
 ) -> ClaimPage:
+    as_of = today()
     conditions = [claims.c.status.in_(_GROUPS[group])]
     if partner_id is not None:
         conditions.append(claims.c.partner_id == partner_id)
     if type_ is not None:
         conditions.append(claims.c.type == type_.value)
+    if age is not None:
+        conditions.append(service.age_condition(age, as_of))
     if q:
         conditions.append(orders.c.order_id.startswith(q.strip().upper()))
     where = and_(*conditions)
@@ -147,7 +152,6 @@ def list_claims(
         .limit(page_size)
         .offset((page - 1) * page_size)
     ).all()
-    as_of = today()
     return ClaimPage(
         rows=[_row(r, as_of) for r in rows],
         total=counted[0],

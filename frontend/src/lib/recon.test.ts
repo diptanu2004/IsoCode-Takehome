@@ -13,3 +13,15 @@ describe("parseRupees", () => {
     for (const bad of ["", "abc", "-30", "1.234", "1e3", "12.3.4"]) expect(parseRupees(bad)).toBeNull();
   });
 });
+
+describe("heatStep", () => {
+  it("shades nothing for zero and splits the rest into five steps", async () => {
+    const { heatStep } = await import("./overview");
+    expect(heatStep(0, 100)).toBe(0);
+    expect(heatStep(1, 100)).toBe(1);
+    expect(heatStep(20, 100)).toBe(1);
+    expect(heatStep(21, 100)).toBe(2);
+    expect(heatStep(100, 100)).toBe(5);
+    expect(heatStep(5, 0)).toBe(0);
+  });
+});

@@ -6,9 +6,9 @@ record what came back, and (co-founder only) write them off.
 
 import io
 import zipfile
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import Connection, func, insert, select, update
+from sqlalchemy import Connection, and_, func, insert, select, update
 
 from app import audit
 from app.enums import ClaimStatus, ClaimType
@@ -27,6 +27,27 @@ from app.schema import (
 )
 
 LIVE = [ClaimStatus.OPEN.value, ClaimStatus.RAISED.value, ClaimStatus.PARTNER_REJECTED.value]
+
+# Days since the claim became actionable (TDD §8.4): key, first day, last day (None = no end).
+AGE_BUCKETS: tuple[tuple[str, int, int | None], ...] = (
+    ("0-7", 0, 7),
+    ("8-15", 8, 15),
+    ("16-30", 16, 30),
+    ("31-60", 31, 60),
+    ("61+", 61, None),
+)
+
+
+def age_condition(bucket: str, as_of: date):
+    """Claims whose age falls in the bucket. A claim not yet a day old counts as 0-7."""
+    _, first, last = next(b for b in AGE_BUCKETS if b[0] == bucket)
+    conditions = []
+    if first > 0:
+        conditions.append(claims.c.aging_from <= as_of - timedelta(days=first))
+    if last is not None:
+        conditions.append(claims.c.aging_from >= as_of - timedelta(days=last))
+    return and_(*conditions)
+
 
 TYPE_LABELS = {
     ClaimType.RETURN_NOT_RECEIVED: "Return not received",

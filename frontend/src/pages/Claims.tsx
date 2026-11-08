@@ -7,6 +7,7 @@ import { PanelSection, SidePanel } from "../components/SidePanel";
 import { ClaimBadge } from "../components/StatusBadges";
 import { Alert, Button, EmptyState, Notice, PageHeader, Spinner, TextField, cx, useTitle } from "../components/ui";
 import { formatCompact, formatCount, formatDate, formatDateTime, formatMonth, formatRupees } from "../lib/format";
+import { AGE_LABELS } from "../lib/overview";
 import { useDebouncedSearch, useFilterParams } from "../lib/params";
 import {
   CLAIM_STATUS_LABELS,
@@ -25,7 +26,7 @@ import {
   type PartnerTotal,
 } from "../lib/recon";
 
-const FILTER_KEYS = ["group", "partner_id", "type", "q", "page"] as const;
+const FILTER_KEYS = ["group", "partner_id", "type", "age", "q", "page"] as const;
 const PAGE_SIZE = 50;
 const LIVE: ClaimStatus[] = ["open", "raised", "partner_rejected"];
 
@@ -198,7 +199,7 @@ function PartnerCard({
 
 function Tabs({ active, onPick }: { active: string; onPick: (group: string | null) => void }) {
   return (
-    <div className="-mx-4 mb-4 overflow-x-auto border-b border-line px-4 sm:mx-0 sm:px-0">
+    <div className="-mx-4 mb-4 overflow-x-auto overflow-y-hidden border-b border-line px-4 sm:mx-0 sm:px-0">
       <div className="flex gap-1" role="group" aria-label="Claim status">
         {GROUPS.map((g) => {
           const on = g.value === active;
@@ -234,8 +235,8 @@ function ClaimFilters({
 }) {
   const [text, setText] = useDebouncedSearch(filters.q, (q) => update({ q }));
   return (
-    <div className="mb-4 grid gap-2 sm:grid-cols-[minmax(0,16rem)_14rem]">
-      <div className="relative">
+    <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,16rem)_14rem_10rem]">
+      <div className="relative col-span-2 sm:col-span-1">
         <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-faint" aria-hidden />
         <input
           type="search"
@@ -252,6 +253,14 @@ function ClaimFilters({
         {(Object.keys(CLAIM_TYPE_LABELS) as ClaimType[]).map((type) => (
           <option key={type} value={type}>
             {CLAIM_TYPE_LABELS[type]}
+          </option>
+        ))}
+      </select>
+      <select aria-label="Age" value={filters.age} onChange={(e) => update({ age: e.target.value })} className={control}>
+        <option value="">Any age</option>
+        {Object.entries(AGE_LABELS).map(([key, label]) => (
+          <option key={key} value={key}>
+            {label}
           </option>
         ))}
       </select>
@@ -304,7 +313,7 @@ function ClaimList({
   }
   const { rows, total, total_paise, page } = claims.data;
   if (!rows.length) {
-    const filtered = filters.partner_id || filters.type || filters.q;
+    const filtered = filters.partner_id || filters.type || filters.age || filters.q;
     return (
       <EmptyState icon={filtered ? FileSearch : CheckCircle2} title={filtered ? "No claims match" : "Nothing here"}>
         {filtered

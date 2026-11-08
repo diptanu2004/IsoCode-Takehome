@@ -43,7 +43,7 @@ with evidence attached.
 - [x] Matching engine: expected amounts from rate cards, statuses, automatic claims; 3,042 of 3,042 planted problems found; 1 lakh rows in about 40 s
 - [x] Reconciliation and Claims screens: order detail with source rows, claim lifecycle, evidence ZIP, raise all
 - [ ] Rate cards screen
-- [ ] Overview (money at risk, TCS/TDS)
+- [x] Overview: money at risk by partner and age (cells open the claims), recovered vs ₹30 L, auto-match rate vs 98%, within tolerance, TCS/TDS
 - [ ] Deployed
 
 ## Stack

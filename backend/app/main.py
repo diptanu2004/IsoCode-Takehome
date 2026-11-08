@@ -14,6 +14,7 @@ from app.db import get_conn
 from app.ingest import routes as upload_routes
 from app.ingest.worker import Worker
 from app.mapping import routes as mapping_routes
+from app.overview import routes as overview_routes
 from app.partners import routes as partner_routes
 from app.recon import routes as recon_routes
 from app.users import routes as user_routes
@@ -29,6 +30,7 @@ API_ROUTERS = (
     recon_routes.router,
     claim_routes.router,
     partner_routes.router,
+    overview_routes.router,
 )
 
 _SECURITY_HEADERS = {
