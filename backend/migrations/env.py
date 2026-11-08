@@ -1,15 +1,18 @@
+import logging
 from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import create_engine, pool
 
 from app.config import get_settings
+from app.db import CONNECT_ARGS
 from app.schema import metadata
 
 config = context.config
 
 if config.config_file_name is not None and config.attributes.get("configure_logger", True):
     fileConfig(config.config_file_name)
+log = logging.getLogger("alembic.env")
 
 target_metadata = metadata
 
@@ -34,7 +37,10 @@ def run_migrations_online() -> None:
             context.run_migrations()
         return
 
-    engine = create_engine(get_settings().sqlalchemy_url, poolclass=pool.NullPool)
+    log.info("Connecting to the database")
+    engine = create_engine(
+        get_settings().sqlalchemy_url, poolclass=pool.NullPool, connect_args=CONNECT_ARGS
+    )
     with engine.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
