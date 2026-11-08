@@ -10,7 +10,9 @@ import { ApiError } from "./lib/api";
 import { Claims } from "./pages/Claims";
 import { Mapping } from "./pages/Mapping";
 import { Overview } from "./pages/Overview";
+import { RateCards } from "./pages/RateCards";
 import { Reconciliation } from "./pages/Reconciliation";
+import { Settings } from "./pages/Settings";
 import { SignIn } from "./pages/SignIn";
 import { SourceLayouts } from "./pages/SourceLayouts";
 import { Uploads } from "./pages/Uploads";
@@ -41,6 +43,8 @@ const router = createBrowserRouter([
       { path: "reconciliation", element: <Reconciliation /> },
       { path: "claims", element: <Claims /> },
       { path: "uploads", element: <Uploads /> },
+      { path: "rate-cards", element: <RateCards /> },
+      { path: "settings", element: <Settings /> },
       { path: "uploads/:uploadId/mapping", element: <Mapping /> },
       { path: "sources/:sourceId/layouts", element: <SourceLayouts /> },
       { path: "*", element: <NotFound /> },

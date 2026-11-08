@@ -1,4 +1,15 @@
-import { FileUp, HandCoins, LayoutDashboard, ListChecks, LogOut, Menu, X, type LucideIcon } from "lucide-react";
+import {
+  FileUp,
+  HandCoins,
+  LayoutDashboard,
+  ListChecks,
+  LogOut,
+  Menu,
+  ReceiptIndianRupee,
+  Settings as SettingsIcon,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
 import { ROLE_LABELS, can, useMe, useSignOut, type Me, type Permission } from "../auth/session";
@@ -18,6 +29,8 @@ const NAV: NavItem[] = [
   { to: "/reconciliation", label: "Reconciliation", icon: ListChecks, permission: "recon.view" },
   { to: "/claims", label: "Claims", icon: HandCoins, permission: "recon.view" },
   { to: "/uploads", label: "Uploads", icon: FileUp, permission: "recon.view" },
+  { to: "/rate-cards", label: "Rate cards", icon: ReceiptIndianRupee, permission: "rate_card.view" },
+  { to: "/settings", label: "Settings", icon: SettingsIcon, permission: "recon.view" },
 ];
 
 function Navigation({ me }: { me: Me }) {

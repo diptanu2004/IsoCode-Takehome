@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import Connection, text
 
+from app.activity import routes as audit_routes
 from app.auth import routes as auth_routes
 from app.claims import routes as claim_routes
 from app.config import REPO_ROOT, get_settings
@@ -33,6 +34,7 @@ API_ROUTERS = (
     partner_routes.router,
     overview_routes.router,
     rate_card_routes.router,
+    audit_routes.router,
 )
 
 _SECURITY_HEADERS = {
@@ -68,7 +70,7 @@ def create_app() -> FastAPI:
         return response
 
     @app.get("/api/health", tags=["ops"])
-    def health(conn: Connection = Depends(get_conn)) -> dict[str, str]:
+    def health(conn: Connection = Depends(get_conn, scope="function")) -> dict[str, str]:
         conn.execute(text("SELECT 1"))
         return {"status": "ok"}
 
