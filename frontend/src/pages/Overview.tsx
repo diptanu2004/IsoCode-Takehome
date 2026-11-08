@@ -110,7 +110,7 @@ function Kpis({ o }: { o: OverviewData }) {
         footer={
           recovery.written_off_paise || recovery.paid_late_paise ? (
             <>
-              {recovery.paid_late_paise > 0 && `${formatCompact(recovery.paid_late_paise)} paid late after flagging`}
+              {recovery.paid_late_paise > 0 && `${formatCompact(recovery.paid_late_paise)} resolved by later files or rate changes`}
               {recovery.paid_late_paise > 0 && recovery.written_off_paise > 0 && " · "}
               {recovery.written_off_paise > 0 && `${formatCompact(recovery.written_off_paise)} written off`}
             </>

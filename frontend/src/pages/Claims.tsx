@@ -319,7 +319,7 @@ function ClaimList({
         {filtered
           ? "Try another partner, problem or order ID."
           : closed
-            ? "Claims appear here once they're recovered, written off, or paid in a later file."
+            ? "Claims appear here once they're recovered, written off, or resolved when matched again."
             : "No claims in this state. New ones appear as partner files are matched."}
       </EmptyState>
     );

@@ -412,7 +412,9 @@ closed AS (
     FROM gone WHERE c.id = gone.id
 )
 INSERT INTO claim_events (claim_id, from_status, to_status, note)
-SELECT id, status, 'auto_resolved', 'A later file covered this gap' FROM gone
+SELECT id, status, 'auto_resolved',
+    'Matched again and the gap is gone: a later file paid it, or a rate card changed'
+FROM gone
 """
 
 _PATTERNS = """
@@ -467,7 +469,9 @@ closed AS (
     FROM gone WHERE c.id = gone.id
 )
 INSERT INTO claim_events (claim_id, from_status, to_status, note)
-SELECT id, status, 'auto_resolved', 'The pattern is gone' FROM gone
+SELECT id, status, 'auto_resolved',
+    'Matched again and the pattern is gone: a later file paid it, or a rate card changed'
+FROM gone
 """
 
 _LINK_PATTERN_ORDERS = f"""

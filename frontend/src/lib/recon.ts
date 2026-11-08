@@ -166,7 +166,7 @@ export const CLAIM_STATUS_LABELS: Record<ClaimStatus, string> = {
   partner_rejected: "Rejected by partner",
   recovered: "Recovered",
   written_off: "Written off",
-  auto_resolved: "Paid later",
+  auto_resolved: "Resolved by matching",
 };
 
 function query(params: Record<string, string | number | undefined | null>): string {

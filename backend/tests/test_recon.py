@@ -351,7 +351,11 @@ def test_late_payment_closes_the_claim_with_a_reason(conn):
     ).all()
     assert [tuple(n) for n in notes] == [
         (None, "open", "Found by matching"),
-        ("open", "auto_resolved", "A later file covered this gap"),
+        (
+            "open",
+            "auto_resolved",
+            "Matched again and the gap is gone: a later file paid it, or a rate card changed",
+        ),
     ]
 
 
