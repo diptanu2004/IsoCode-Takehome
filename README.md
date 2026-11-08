@@ -50,7 +50,7 @@ with evidence attached.
 
 | Layer | Tools |
 |---|---|
-| Frontend | React, TypeScript, Vite, TanStack Query and Table, Tailwind CSS |
+| Frontend | React, TypeScript, Vite, TanStack Query, React Router, Tailwind CSS |
 | Backend | Python 3.12, FastAPI, Pydantic, SQLAlchemy Core, psycopg 3, Alembic, Polars |
 | Database | PostgreSQL 16 |
 | AI | Groq (`openai/gpt-oss-120b`, strict structured outputs), with a rule-based fallback; Anthropic as an option |

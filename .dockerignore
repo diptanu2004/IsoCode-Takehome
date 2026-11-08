@@ -1,0 +1,20 @@
+# Keep secrets, local data and build output out of the image.
+.env
+.env.*
+!.env.example
+.git
+.claude
+var/
+sample-data/generated/
+docs/*.pdf
+docs/*.docx
+
+**/__pycache__
+**/*.py[cod]
+backend/.venv
+backend/.pytest_cache
+backend/.ruff_cache
+backend/var
+
+frontend/node_modules
+frontend/dist

@@ -16,6 +16,7 @@ from app.ingest.worker import Worker
 from app.mapping import routes as mapping_routes
 from app.overview import routes as overview_routes
 from app.partners import routes as partner_routes
+from app.ratecards import routes as rate_card_routes
 from app.recon import routes as recon_routes
 from app.users import routes as user_routes
 
@@ -31,6 +32,7 @@ API_ROUTERS = (
     claim_routes.router,
     partner_routes.router,
     overview_routes.router,
+    rate_card_routes.router,
 )
 
 _SECURITY_HEADERS = {
@@ -87,7 +89,7 @@ def _serve_spa(app: FastAPI, dist: Path) -> None:
     app.mount("/assets", StaticFiles(directory=dist / "assets"), name="assets")
     index = dist / "index.html"
 
-    @app.get("/{path:path}", include_in_schema=False)
+    @app.api_route("/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
     def spa(path: str) -> FileResponse:
         candidate = (dist / path).resolve()
         if path and candidate.is_file() and candidate.is_relative_to(dist.resolve()):
