@@ -36,3 +36,6 @@ Thumbs.db
 
 # Local Claude Code settings
 .claude/
+
+# Submission ZIP (its deployment.md carries the demo passwords)
+submission/

@@ -20,8 +20,8 @@ in the environment variables below. On the live demo:
 
 | Role | Email | Password |
 |---|---|---|
-| Finance executive | `exec@demo.local` | TBD (given with the submission, not stored in the repo) |
-| Co-founder | `cofounder@demo.local` | TBD |
+| Finance executive | `exec@demo.local` | In the copy of this file sent with the submission; never stored in the repository |
+| Co-founder | `cofounder@demo.local` | As above |
 
 ## Environment variables
 
