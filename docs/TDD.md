@@ -380,16 +380,31 @@ zone [A8]. The rules for a courier look like this:
 
 ```json
 {
+  "type": "courier",
   "slab_g": 500,
-  "forward": { "A": { "first": 30, "addl": 15 }, "C": { "first": 48, "addl": 23 } },
+  "forward": { "A": { "first": 30, "additional": 15 }, "C": { "first": 48, "additional": 23 } },
   "return_pct_of_forward": 100,
   "cod_fee": { "pct": 2.0, "min": 30 }
 }
 ```
 
-**Marketplace and quick-commerce** rules are: commission %, fixed fee, a
-shipping fee by weight slab, and a flag for whether commission is refunded on
-a return.
+**Marketplace and quick-commerce** rules are: commission % (rounded to the
+paisa or to the rupee, as the partner does), a fixed fee, an optional shipping
+fee by weight slab, and what happens on a return: whether commission and the
+fixed fee are refunded, and what share of the forward shipping fee is charged
+again.
+
+**Changing a rate card.** Versions are never edited in place. The co-founder
+adds a version with a start date and a reason; the previous version ends the
+day before. Saving it audits the change and matches that partner's orders from
+the start date again, in the same transaction, so statuses and claims move at
+once. The screen then reports how many orders were re-checked and how many
+claims opened, changed or closed. When the systematic-gap check (§8.5) finds
+small gaps going one way, the partner's rate card is flagged "a rate may have
+changed without notice", linked to the claim. Tested end to end on the seed:
+Quick-commerce 2 is planted with a ₹15 fixed fee against a ₹10 card. Adding a
+₹15 version from 1 September re-checked 3,667 orders in a few seconds and
+closed the three pattern claims.
 
 **Expected freight** is based on Company A's declared weight from the orders
 file and the zone shown on the courier's invoice [A9]. Evidence for a freight
@@ -708,8 +723,8 @@ and simple filters.
 | 4 | Column mapping | Executive | <ul><li>Two columns: target field ← source column, with confidence and reason</li><li>20-row preview underneath with red and amber cells</li><li>Version history with rollback</li></ul> |
 | 5 | Reconciliation | Executive | <ul><li>Status chips with counts (and the money short on Problems), partner and order-date filters, search by order ID or AWB, sort</li><li>Detail panel for each order: a plain-language reason per problem, expected vs actual per component, TCS/TDS shown apart, linked claims, each source line with its file and row number, which expands to show the partner's original row, and the rate-card versions used</li><li>The open order is in the URL, so Back closes it and a link opens it</li></ul> |
 | 6 | Claims | Executive | <ul><li>A card per partner with money outstanding, how many claims are not yet raised, money recovered, the evidence ZIP and "Raise all"</li><li>Tabs: all live, to raise, raised, rejected, closed; filter by problem; search by order ID</li><li>Detail panel with the next step (raise with a reference, record money that came back, partner rejected, write off for the co-founder only, with a confirm step) and the full history</li><li>Systematic-gap claims show how many orders are behind them and list the largest 200</li></ul> |
-| 7 | Rate cards | Co-founder (executive read-only) | <ul><li>Versions on a timeline</li><li>Edits create a new version with an effective date</li><li>A flag when the systematic-gap check suspects a rate</li></ul> |
-| 8 | Settings | Co-founder | Users and roles; partner settlement cycles, tolerance and return window; audit log |
+| 7 | Rate cards | Co-founder (executive read-only) | <ul><li>The card in force written out in plain words, and earlier versions with the dates each covered and how many orders it priced</li><li>"New version" (co-founder): a form prefilled from the current card, a start date and a reason; saving re-checks the affected orders and reports what changed</li><li>A warning, linked to the claim, when the systematic-gap check suspects a rate</li></ul> |
+| 8 | Settings | Co-founder | <ul><li>Partners: settlement cycle, tolerance and return window, explained in one line each; a change re-checks that partner's orders</li><li>People: add someone with a first password, change a role, remove or restore access</li><li>Activity: the audit log in sentences ("Raised ORD-M-80001 (Short-paid) with the partner"), filterable by area</li></ul> |
 
 ### 11.3 States and layout
 
@@ -758,8 +773,19 @@ and simple filters.
   exported file cannot carry spreadsheet formulas.
 - **Secrets:** read only from environment variables. `.env` is listed in
   `.gitignore`, and `.env.example` documents each variable.
-- **Audit:** mapping approvals, rate-card edits, claim changes, write-offs and
-  role changes all record who, when, and the before and after values.
+- **Audit:** mapping approvals, rate-card versions, partner settings, claim
+  actions, write-offs, and people added, changed or removed all record who,
+  when, and the before and after values. Passwords are never logged. The
+  Settings screen shows the log: everyone sees their own actions, the
+  co-founder sees everyone's.
+- **People:** only the co-founder adds people or changes roles, and can't
+  change their own access, so user management can't be locked out. Removing
+  someone's access ends their sessions at once.
+- **Commit before responding:** each request's transaction commits before its
+  response is sent (FastAPI dependency scope `"function"`). With the default
+  scope the commit ran after the response, so a screen that refetched straight
+  after a change could read the data from before it. This was found in testing
+  (a new rate card showed "priced 0 orders") and a test now checks every route.
 
 ### 12.2 Personal data (DPDP Act 2023)
 
@@ -774,7 +800,8 @@ Settle **does not store them at all**. That is stronger than masking them.
   `orders` and every export.
 - **The LLM.** It sees headers and type signatures only, never values.
 - **Uploaded files.** Each file is deleted once its rows are loaded. Uploads
-  abandoned at the mapping step are deleted after 24 hours [A19].
+  abandoned at the mapping step are deleted after 24 hours [A19]: the worker
+  checks every 10 minutes and marks them failed, so they can be sent again.
 - **Sample data.** All of it is synthetic. Seed files include fake name and
   phone columns only to show that they are detected and dropped.
 
@@ -786,10 +813,12 @@ Settle **does not store them at all**. That is stronger than masking them.
 | Matching rules | 41 tests with hand-built orders: every scenario in §8.2, each side of the tolerance bands, due dates, backstops, return windows, rate-card versions, claim lifecycle, and the pattern check |
 | Against the answer key | <ul><li>The generator records every problem it plants. Tests require an exact match: every planted problem claimed, with the right partner and amount, and no other claim</li><li>Also holds when the files load in reverse order; re-matching changes nothing</li><li>The three sample rows produce exactly the results in §8.8</li><li>Late payments close their claims</li></ul> |
 | Integration | <ul><li>Seed files go through upload → mapping → load → match → claims</li><li>Uploading the same file twice is rejected; an overlapping file does not double-count</li></ul> |
-| Access control | Every protected route × every role → expected 200 or 403 |
+| API | Reconciliation list, filters and order detail; the claim lifecycle and its audit trail; evidence ZIP contents; Overview numbers against hand-built claims, and the claims behind each age bucket adding up to it; rate-card versions re-pricing orders; partner settings re-matching; people management; audit visibility per role |
+| Access control | Every protected route × every role → expected 200 or 403; every route commits before it responds |
+| Housekeeping | The daily re-check runs once a day; files abandoned at mapping are deleted after 24 hours; the row limit |
 | AI mapping | Schema validation; dropping invented columns; merging with rules; the fallback path (LLM stubbed); accuracy on the fixtures when an API key is present |
 | Performance | A benchmark test (small in CI, 1 lakh rows run separately) that fails if the time budget is exceeded |
-| Frontend | Number and lakh formatting; one smoke test of the main flow (stretch) |
+| Frontend | Money, date and lakh formatting; parsing typed amounts; the rate-card form round trip and its validation; heat-map shading steps. Each screen was also checked by hand in Chrome, at desktop and phone widths |
 
 ## 14. Assumptions register
 
@@ -851,8 +880,14 @@ noted.
 
 ## 16. Known limits
 
-**TBD** as the build progresses. Known so far:
-
+- Raising a claim is simulated: Settle records it as raised with the partner's
+  ticket reference and produces the evidence pack, but sends nothing (the brief
+  asks for mocks).
+- A wrong upload can't be voided from the screen yet: its rows stay loaded
+  until they are removed in the database. The schema already has a `voided`
+  status for this.
+- There is no automated browser test of the main flow. The screens were
+  checked by hand in Chrome at desktop and phone widths.
 - The uploaded file sits on the container's own disk until it is loaded. If
   the container restarts during that window, the upload fails and has to be
   uploaded again.

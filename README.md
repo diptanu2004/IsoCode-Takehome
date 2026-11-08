@@ -34,7 +34,7 @@ with evidence attached.
 
 ## Build status
 
-- [x] Scope, design document and deployment guide (first draft)
+- [x] Scope, design document and deployment guide
 - [x] Schema, sign-in and roles (server-side sessions, CSRF, lockout, permission matrix tests)
 - [x] Seed and sample-data generator (60k orders, 1.5% planted leakage, answer key)
 - [x] Frontend shell: sign-in, role-aware navigation
@@ -42,7 +42,9 @@ with evidence attached.
 - [x] Column mapping: rules + AI suggestions, 20-row preview, approval, versions, rollback
 - [x] Matching engine: expected amounts from rate cards, statuses, automatic claims; 3,042 of 3,042 planted problems found; 1 lakh rows in about 40 s
 - [x] Reconciliation and Claims screens: order detail with source rows, claim lifecycle, evidence ZIP, raise all
-- [ ] Rate cards screen
+- [x] Rate cards: versions in plain words, new versions (co-founder) that re-check the affected orders, a flag when a rate seems to have changed
+- [x] Settings: partner terms (re-check on change), people and roles, the audit log
+- [x] Docker image, Render blueprint, demo files
 - [x] Overview: money at risk by partner and age (cells open the claims), recovered vs ₹30 L, auto-match rate vs 98%, within tolerance, TCS/TDS
 - [ ] Deployed
 
