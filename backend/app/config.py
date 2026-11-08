@@ -33,6 +33,16 @@ class Settings(BaseSettings):
     run_worker: bool = True  # tests and one-off scripts process uploads themselves
     upload_dir: Path = REPO_ROOT / "var" / "uploads"
 
+    @field_validator("database_url", "groq_api_key", "anthropic_api_key", "llm_model")
+    @classmethod
+    def trim_pasted_value(cls, value: str) -> str:
+        """Values pasted into a hosting dashboard often carry a newline, space or quotes.
+
+        A key with a trailing newline is an invalid HTTP header, which the AI SDKs report
+        only as "Connection error", so trim them here.
+        """
+        return value.strip().strip("\"'").strip()
+
     @field_validator("session_secret")
     @classmethod
     def secret_is_long_enough(cls, value: str) -> str:

@@ -121,6 +121,11 @@ def _strict_schema(model: type[BaseModel]) -> dict:
 GROQ_ATTEMPTS = 2  # strict decoding still occasionally emits broken JSON; one retry fixes it
 
 
+def _cause_name(exc: Exception) -> str:
+    """The underlying error's type, e.g. ConnectError or LocalProtocolError, never its text."""
+    return type(exc.__cause__ or exc).__name__
+
+
 def _ask_groq(settings, prompt: str) -> MappingProposal:
     client = groq.Groq(api_key=settings.groq_api_key, timeout=TIMEOUT_SECONDS, max_retries=1)
     request = {
@@ -155,13 +160,18 @@ def _ask_groq(settings, prompt: str) -> MappingProposal:
             log.warning("AI mapping request failed: %s", str(exc)[:300])
             raise AISuggestionError("The AI service returned an error.") from exc
         except groq.APITimeoutError as exc:
+            log.warning("AI mapping request timed out")
             raise AISuggestionError("The AI took too long to answer.") from exc
         except groq.RateLimitError as exc:
+            log.warning("AI mapping request rate-limited: %s", str(exc)[:300])
             raise AISuggestionError("The AI service is busy right now.") from exc
         except groq.APIStatusError as exc:
             log.warning("AI mapping request failed: %s", str(exc)[:300])
             raise AISuggestionError("The AI service returned an error.") from exc
         except groq.APIConnectionError as exc:
+            # The SDK wraps every transport error (DNS, TLS, a malformed header) as this. Log
+            # only the cause's type: a malformed-header message would contain the API key.
+            log.warning("AI mapping request could not connect: %s", _cause_name(exc))
             raise AISuggestionError("Couldn't reach the AI service.") from exc
 
     choice = response.choices[0]
@@ -198,13 +208,16 @@ def _ask_anthropic(settings, prompt: str) -> MappingProposal:
             fallbacks="default",
         )
     except anthropic.APITimeoutError as exc:
+        log.warning("AI mapping request timed out")
         raise AISuggestionError("The AI took too long to answer.") from exc
     except anthropic.RateLimitError as exc:
+        log.warning("AI mapping request rate-limited: %s", exc)
         raise AISuggestionError("The AI service is busy right now.") from exc
     except anthropic.APIStatusError as exc:
         log.warning("AI mapping request failed: %s", exc)
         raise AISuggestionError("The AI service returned an error.") from exc
     except anthropic.APIConnectionError as exc:
+        log.warning("AI mapping request could not connect: %s", _cause_name(exc))
         raise AISuggestionError("Couldn't reach the AI service.") from exc
 
     if response.stop_reason == "refusal":

@@ -8,7 +8,7 @@ paid the right amount. Anything short, late or overcharged becomes a claim
 with evidence attached.
 
 - **Repository:** https://github.com/diptanu2004/IsoCode-Takehome
-- **Live app:** TODO
+- **Live app:** https://settle-6la0.onrender.com (free instance: allow about a minute for the first visit while it wakes; demo logins in the submission's `deployment.md`)
 - **Design document:** [docs/TDD.md](docs/TDD.md)
 - **Run and deploy:** [deployment.md](deployment.md)
 - **Client brief:** [docs/brief.md](docs/brief.md)
@@ -46,7 +46,7 @@ with evidence attached.
 - [x] Settings: partner terms (re-check on change), people and roles, the audit log
 - [x] Docker image, Render blueprint, demo files
 - [x] Overview: money at risk by partner and age (cells open the claims), recovered vs ₹30 L, auto-match rate vs 98%, within tolerance, TCS/TDS
-- [ ] Deployed
+- [x] Deployed on Render + Neon (Singapore); 1 lakh-row settlement file matched in 29.3 s on the live app
 
 ## Stack
 

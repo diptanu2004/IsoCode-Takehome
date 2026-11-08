@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import polars as pl
 import pytest
 
-from app.config import get_settings
+from app.config import Settings, get_settings
 from app.enums import FileKind
 from app.mapping import llm
 from app.mapping.llm import AISuggestionError, suggest_with_ai
@@ -91,6 +91,26 @@ def test_groq_connection_failure_is_reported_plainly(groq_on):
     groq_on.error = llm.groq.APIConnectionError(request=None)
     with pytest.raises(AISuggestionError, match="Couldn't reach the AI service"):
         suggest_with_ai(FileKind.SETTLEMENT, "Marketplace 1", PROFILES)
+
+
+def test_connection_failure_is_logged_without_the_key(groq_on, caplog):
+    # A key pasted with a newline makes an invalid header; httpx's message quotes it in full.
+    error = llm.groq.APIConnectionError(request=None)
+    error.__cause__ = ValueError("Illegal header value b'Bearer gsk_SECRET\\n'")
+    groq_on.error = error
+    with pytest.raises(AISuggestionError):
+        suggest_with_ai(FileKind.SETTLEMENT, "Marketplace 1", PROFILES)
+    assert "could not connect: ValueError" in caplog.text
+    assert "gsk_SECRET" not in caplog.text
+
+
+@pytest.mark.parametrize("pasted", ["gsk_abc\n", "  gsk_abc ", '"gsk_abc"', "'gsk_abc'\r\n"])
+def test_pasted_keys_are_trimmed(pasted):
+    settings = Settings(
+        database_url="postgresql://u:p@h/db\n", session_secret="s" * 32, groq_api_key=pasted
+    )
+    assert settings.groq_api_key == "gsk_abc"
+    assert settings.database_url == "postgresql://u:p@h/db"
 
 
 def test_no_key_or_switched_off_means_rules_only(monkeypatch):

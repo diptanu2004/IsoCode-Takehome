@@ -2,7 +2,8 @@
 
 **GitHub:** https://github.com/diptanu2004/IsoCode-Takehome
 
-**Live app:** `TODO: deployed URL`
+**Live app:** https://settle-6la0.onrender.com (free instance: the first visit
+after 15 idle minutes takes about a minute while it wakes)
 
 **Demo accounts:** listed in [deployment.md](../deployment.md)
 
@@ -35,11 +36,11 @@ never counted as leakage. When a partner changes its file format, AI suggests
 the new column mapping. A person checks it on a 20-row preview and approves it,
 and every version can be rolled back.
 
-Headline results (**TBD**, measured on the deployed build):
+Headline results:
 
 | Measure | Target | Result |
 |---|---|---|
-| 1 lakh-row file, picked up to matching finished | < 60 s | 39.9 s CSV, 42.3 s Excel (laptop; §10) |
+| 1 lakh-row file, accepted to matching finished | < 60 s | 29.3 s on the deployed app (Render free + Neon); 39.9 s CSV, 42.3 s Excel on a laptop (§10) |
 | Planted problems found on the 60k-order seed | all | 3,042 of 3,042: none missed, none invented (§13) |
 | Orders auto-matched on seed data [A1] | ≥ 98% | 99.94%, though seed IDs are clean, so real files will score lower |
 | AI mapping accuracy on unfamiliar layouts (57 fields) | ≥ 90% | 100% with AI (rules alone: 82%) |
@@ -657,9 +658,29 @@ matched automatically, as the brief requires.
 
 ## 10. Performance: 1 lakh rows in under a minute
 
-Measured with `scripts/benchmark.py` on a laptop, with Postgres 16 in Docker
-Desktop on Windows. Times run from the file being picked up to matching and
-claims being finished. **TBD:** the same run on the deployed tier.
+Times run from the file being picked up to matching and claims being
+finished.
+
+**On the deployed app** (8–9 November 2026): Render's free instance in
+Singapore, with Neon's free plan (Postgres 16, Singapore). The files were
+uploaded through the live app as the co-founder, into an empty database, and
+the times are the stage timings the app records for each upload.
+
+| File | Rows | Ledger lines | Read | Clean | Store rows | Load | Match + claims | **Total** |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Settlement, CSV (Marketplace 1) | 1,00,000 | 5,67,081 | 0.7 s | 3.6 s | 3.1 s | 10.1 s | 11.5 s | **29.3 s** |
+| Orders export, CSV, in 3 files | 1,33,337 | none | 1.1 s | 3.7 s | 4.2 s | 3.7 s | 5.4 s | **19.7 s** |
+
+Here the totals run from the upload being accepted to matching finished, so
+they also include the wait for the worker to pick the file up; the stages add
+up to slightly less (28.9 s and 18.3 s). The settlement file matched 5,66,301 of its lines, re-checked 1,30,700 orders
+and opened 4,546 claims. The orders were split into three files only because
+the browser tool used to upload them takes 10 MB at most. Sending the 9.6 MB
+settlement file from a home connection in Bengaluru took another 7.6 s, so a
+user waited about 37 s from clicking Upload to seeing the result.
+
+**On a laptop**, measured with `scripts/benchmark.py`, with Postgres 16 in
+Docker Desktop on Windows:
 
 | File | Rows | Ledger lines | Read | Clean | Store rows | Load | Match + claims | **Total** |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -667,8 +688,11 @@ claims being finished. **TBD:** the same run on the deployed tier.
 | Settlement, Excel | 1,00,000 | 5,67,081 | 1.5 s | 0.3 s | 2.1 s | 19.6 s | 18.6 s | **42.3 s** |
 | Orders export, CSV | 1,33,337 | none | 0.4 s | 0.5 s | 3.1 s | 7.8 s | 6.2 s | **18.0 s** |
 
-All are under the 60 s the brief asks for. On this machine the margin is about
-a third, so a much smaller hosting tier could use it up (§16).
+All are under the 60 s the brief asks for. The deployed app was faster than
+the laptop: the steps that run in Python (read, clean) were slower on the
+small instance, but loading and matching run in Postgres, and Neon was quicker
+than Docker Desktop. That is why the design pushes the heavy work into set-based
+SQL.
 
 The design held, but only after three fixes that measurement forced. Each one
 was a query plan going wrong at scale, not a slow language or library:
@@ -952,8 +976,10 @@ noted.
   where that risk sits.
 - Rolling back a layout changes how new files are read. It doesn't yet re-map
   files already loaded with the replaced version, which §9.1 step 8 describes.
-- Free hosting tiers have little CPU and go to sleep when idle. The first
-  request after idle is slow, and benchmark results depend on the tier (§10).
+- The live demo runs on Render's free instance. It goes to sleep after 15 idle
+  minutes, so the first request afterwards takes about a minute. Once, during
+  setup, it did not wake at all until it was redeployed. A paid instance avoids
+  both; nothing in the app depends on the tier.
 
 ## 17. Open questions for the client
 

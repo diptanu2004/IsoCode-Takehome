@@ -15,6 +15,9 @@ service.
 
 ## Demo accounts
 
+Live demo: https://settle-6la0.onrender.com. It runs on a free instance, so
+the first visit after 15 idle minutes takes about a minute while it wakes.
+
 The seed script creates one account per role, using the emails and passwords
 in the environment variables below. On the live demo:
 
@@ -168,3 +171,5 @@ benchmark in the TDD states which instance type it was measured on.
 | Mapping shows "AI unavailable" | No key for the chosen `LLM_PROVIDER`, or the call failed | Expected without a key; otherwise check the logs |
 | Upload stuck in `queued` | The worker thread is not running | Check the startup logs; restart the service |
 | Large upload rejected | `MAX_UPLOAD_MB` is too low | Raise it in the environment |
+| Render shows Live, but every request hangs and the logs stay empty | The free instance went to sleep and did not wake (seen once) | Manual Deploy → Deploy latest commit |
+| `failed to resolve host` when seeding Neon from your machine | Some home routers' DNS refuse Neon host names | Use another DNS server, or add `&hostaddr=<IPv4 of the host>` to the URL for that command |
