@@ -148,6 +148,20 @@ def test_the_same_file_is_refused_the_second_time(setup, dataset):
         _upload(ORDERS_FORMAT, content)
 
 
+def test_the_refusal_dates_the_earlier_upload_in_ist(setup):
+    # 19:41 UTC on 8 November is 01:11 IST on 9 November: the user's calendar says the 9th.
+    with get_engine().begin() as conn:
+        source_id = conn.execute(select(sources.c.id).limit(1)).scalar_one()
+        upload_id = register_upload(conn, source_id, "late-night.csv", b"a,b\n1,2\n", None)
+        conn.execute(
+            uploads.update()
+            .where(uploads.c.id == upload_id)
+            .values(created_at=text("'2026-11-08 19:41:00+00'"))
+        )
+    with get_engine().begin() as conn, pytest.raises(UploadRejected, match="on 09 Nov 2026"):
+        register_upload(conn, source_id, "late-night.csv", b"a,b\n1,2\n", None)
+
+
 def test_an_overlapping_export_adds_nothing_twice(setup, dataset):
     _load_all(dataset[1])
     m1 = next(f for f in SEED_FORMATS if f.partner == "Marketplace 1")

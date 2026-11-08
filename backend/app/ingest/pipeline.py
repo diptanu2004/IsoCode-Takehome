@@ -24,7 +24,7 @@ from app.ingest.apply import ERROR, ROW_NO, MappingError, apply_mapping, drop_em
 from app.ingest.reader import FileReadError, RawTable, read_table
 from app.mapping.fields import FIELDS
 from app.mapping.fingerprint import header_fingerprint, normalise_header
-from app.recon.engine import match_upload
+from app.recon.engine import LOCAL_TZ, match_upload
 from app.schema import mapping_versions, partners, sources, uploads
 
 log = logging.getLogger(__name__)
@@ -72,9 +72,11 @@ def register_upload(
         )
     ).first()
     if earlier:
+        # The user's calendar date (IST), not UTC: 01:11 IST on the 9th is the 8th in UTC.
+        uploaded_on = earlier.created_at.astimezone(LOCAL_TZ)
         raise UploadRejected(
             f"This file was already uploaded as “{earlier.filename}” on "
-            f"{earlier.created_at:%d %b %Y}. Nothing was loaded twice."
+            f"{uploaded_on:%d %b %Y}. Nothing was loaded twice."
         )
     upload_id = conn.execute(
         insert(uploads)
