@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { formatBytes, formatCompact, formatCount, formatRupees, formatSeconds } from "./format";
+import {
+  formatBytes,
+  formatCompact,
+  formatCount,
+  formatDate,
+  formatMonth,
+  formatRupees,
+  formatSeconds,
+  formatSigned,
+} from "./format";
 
 describe("formatRupees", () => {
   it("uses Indian digit grouping", () => {
@@ -46,5 +55,21 @@ describe("counts and sizes", () => {
   it("formats durations", () => {
     expect(formatSeconds(1.84)).toBe("1.8 s");
     expect(formatSeconds(34.4)).toBe("34 s");
+  });
+});
+
+describe("formatSigned", () => {
+  it("marks money in our favour with a plus", () => {
+    expect(formatSigned(1200)).toBe("+₹12.00");
+    expect(formatSigned(-3009)).toBe("−₹30.09");
+    expect(formatSigned(0)).toBe("₹0.00");
+  });
+});
+
+describe("formatDate", () => {
+  it("reads API dates as calendar dates, never shifting a day", () => {
+    expect(formatDate("2025-11-03")).toBe("3 Nov 2025");
+    expect(formatDate("2026-01-01T00:00:00Z")).toBe("1 Jan 2026");
+    expect(formatMonth("2026-10-01")).toBe("Oct 2026");
   });
 });

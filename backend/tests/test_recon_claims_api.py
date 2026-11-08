@@ -169,3 +169,25 @@ def test_evidence_pack_for_a_partner(signed_in, data):
     evidence = archive.read("evidence.csv").decode()
     assert "ORD-M-80001,commission,-230.00" in evidence
     assert "TCS and TDS are statutory deductions" in archive.read("README.txt").decode()
+
+
+def test_systematic_claim_counts_every_order_but_lists_the_largest(signed_in):
+    with get_engine().begin() as conn:
+        seed(conn, AS_OF, PEOPLE)
+        for i in range(210):
+            m1_paid(conn, add_order(conn, f"ORD-M-9{i:04d}"), -500)
+        match_all(conn, AS_OF)
+        claim = conn.execute(
+            select(claims.c.id).where(claims.c.type == "systematic_gap")
+        ).scalar_one()
+    detail = signed_in(Role.EXEC).get(f"/api/claims/{claim}").json()
+    assert detail["order_count"] == 210
+    assert len(detail["orders"]) == 200
+    assert detail["amount_paise"] == 210 * 500
+
+
+def test_partner_list_for_filters(signed_in, data):
+    partners = signed_in(Role.EXEC).get("/api/partners").json()
+    m1 = next(p for p in partners if p["name"] == "Marketplace 1")
+    assert m1["id"] == data["m1"] and m1["kind"] == "marketplace"
+    assert {"settlement_cycle_days", "tolerance_paise", "return_window_days"} <= set(m1)

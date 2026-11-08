@@ -170,7 +170,8 @@ flowchart LR
 ### 5.1 Components
 
 - **Frontend.** React and TypeScript, built with Vite, using:
-  - TanStack Query for server data and TanStack Table for the large tables;
+  - TanStack Query for server data. The large tables are plain HTML tables
+    paged by the server (50 rows a page), so a table library wasn't needed;
   - React Router;
   - Tailwind CSS with a small set of design tokens (§11).
 - **API.** FastAPI with Pydantic models for every request and response.
@@ -689,8 +690,9 @@ and simple filters.
   - KPIs use lakh and crore (₹64.8 L).
   - A difference is red only when it is a loss.
 - **Tables fit the work.**
-  - Rows are 40 px high and the header stays fixed.
-  - Data loads from the server one page at a time.
+  - Rows are compact: an ID with its partner underneath, then amounts.
+  - Data loads from the server 50 rows at a time, and the previous page stays
+    on screen (dimmed) while the next one loads.
   - Filters live in the URL, so a filtered view can be shared and the back
     button works.
 - **Status is never shown by colour alone.** Every status chip has a text
@@ -704,8 +706,8 @@ and simple filters.
 | 2 | Overview | Co-founder | <ul><li>Partner × age table of money at risk, shaded by amount and linked to the filtered orders</li><li>KPI row: money at risk, recovered vs ₹30 L, auto-match rate vs 98%, within-tolerance total</li><li>TCS/TDS panel, styled as statutory deductions</li></ul> |
 | 3 | Uploads | Executive | <ul><li>Drop zone grouped by partner, so a file always lands in the right source</li><li>Live progress with stage names</li><li>History with download of failed rows</li></ul> |
 | 4 | Column mapping | Executive | <ul><li>Two columns: target field ← source column, with confidence and reason</li><li>20-row preview underneath with red and amber cells</li><li>Version history with rollback</li></ul> |
-| 5 | Reconciliation | Executive | <ul><li>Status chips with counts, partner and period filters, search</li><li>Detail panel for each order with expected vs actual per component and links to the source rows</li></ul> |
-| 6 | Claims | Executive | <ul><li>Grouped by partner, with totals</li><li>Lifecycle actions; evidence export as a ZIP containing a CSV and the breakdown</li><li>Systematic-gap claims shown with their orders</li></ul> |
+| 5 | Reconciliation | Executive | <ul><li>Status chips with counts (and the money short on Problems), partner and order-date filters, search by order ID or AWB, sort</li><li>Detail panel for each order: a plain-language reason per problem, expected vs actual per component, TCS/TDS shown apart, linked claims, each source line with its file and row number, which expands to show the partner's original row, and the rate-card versions used</li><li>The open order is in the URL, so Back closes it and a link opens it</li></ul> |
+| 6 | Claims | Executive | <ul><li>A card per partner with money outstanding, how many claims are not yet raised, money recovered, the evidence ZIP and "Raise all"</li><li>Tabs: all live, to raise, raised, rejected, closed; filter by problem; search by order ID</li><li>Detail panel with the next step (raise with a reference, record money that came back, partner rejected, write off for the co-founder only, with a confirm step) and the full history</li><li>Systematic-gap claims show how many orders are behind them and list the largest 200</li></ul> |
 | 7 | Rate cards | Co-founder (executive read-only) | <ul><li>Versions on a timeline</li><li>Edits create a new version with an effective date</li><li>A flag when the systematic-gap check suspects a rate</li></ul> |
 | 8 | Settings | Co-founder | Users and roles; partner settlement cycles, tolerance and return window; audit log |
 
@@ -720,10 +722,12 @@ and simple filters.
 - **Phone:**
   - tables become stacked cards showing order, partner, status and
     difference;
-  - the order detail panel opens full screen;
+  - the order and claim panels open full screen;
+  - the status chips, claim tabs and partner cards become one row you swipe
+    sideways, so the list itself is on the first screen;
   - the partner × age table becomes a list per partner.
 
-  The page never scrolls sideways.
+  The page itself never scrolls sideways; only those rows do.
 
 **TBD:** screenshots of each screen.
 

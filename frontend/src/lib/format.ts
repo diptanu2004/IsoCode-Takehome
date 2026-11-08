@@ -22,6 +22,11 @@ export function formatRupees(paise: number): string {
   return signed(rupees.format(Math.abs(paise) / 100), paise < 0);
 }
 
+/** A difference: "+₹12.00", "−₹30.09", or "₹0.00". */
+export function formatSigned(paise: number): string {
+  return paise > 0 ? `+${formatRupees(paise)}` : formatRupees(paise);
+}
+
 /** ₹64.8 L, ₹4.32 Cr, or whole rupees below one lakh. For KPIs, not tables. */
 export function formatCompact(paise: number): string {
   const value = Math.abs(paise) / 100;
@@ -53,6 +58,24 @@ export function formatCount(value: number): string {
 /** 3 Nov, 19:42 */
 export function formatDateTime(iso: string): string {
   return dateTime.format(new Date(iso));
+}
+
+const calendarDate = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" });
+const monthYear = new Intl.DateTimeFormat("en-IN", { month: "short", year: "numeric" });
+
+/** A calendar date from the API ("2025-11-03") as "3 Nov 2025", read in local time so it never shifts a day. */
+export function formatDate(isoDate: string): string {
+  return calendarDate.format(localDate(isoDate));
+}
+
+/** "2026-10-01" → "Oct 2026" */
+export function formatMonth(isoDate: string): string {
+  return monthYear.format(localDate(isoDate));
+}
+
+function localDate(isoDate: string): Date {
+  const [year, month, day] = isoDate.slice(0, 10).split("-").map(Number);
+  return new Date(year, month - 1, day);
 }
 
 export function formatBytes(bytes: number): string {

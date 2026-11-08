@@ -207,10 +207,14 @@ def claim_detail(claim_id: int, conn: Connection = Depends(get_conn)) -> dict:
         .order_by(claim_orders.c.amount_paise.desc(), orders.c.order_id)
         .limit(200)
     ).all()
+    order_count = conn.execute(
+        select(func.count()).where(claim_orders.c.claim_id == claim_id)
+    ).scalar_one()
     return {
         **_row(row, today()).model_dump(),
         "events": [dict(e._mapping) for e in events],
-        "orders": [dict(m._mapping) for m in members],
+        "orders": [dict(m._mapping) for m in members],  # the 200 largest
+        "order_count": order_count,
     }
 
 

@@ -20,10 +20,11 @@ export function Spinner({ className }: { className?: string }) {
   );
 }
 
-type ButtonVariant = "primary" | "secondary" | "ghost";
+type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
   primary: "bg-accent text-white hover:bg-accent-strong",
+  danger: "bg-loss text-white hover:bg-loss/90",
   secondary: "border border-line-strong bg-surface text-ink hover:bg-canvas",
   ghost: "text-muted hover:bg-canvas hover:text-ink",
 };

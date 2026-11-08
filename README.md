@@ -41,8 +41,8 @@ with evidence attached.
 - [x] Upload pipeline and Uploads screen (bulk load, duplicate and overlap safety, rejected-row download)
 - [x] Column mapping: rules + AI suggestions, 20-row preview, approval, versions, rollback
 - [x] Matching engine: expected amounts from rate cards, statuses, automatic claims; 3,042 of 3,042 planted problems found; 1 lakh rows in about 40 s
+- [x] Reconciliation and Claims screens: order detail with source rows, claim lifecycle, evidence ZIP, raise all
 - [ ] Rate cards screen
-- [ ] Reconciliation and claims screens, evidence export
 - [ ] Overview (money at risk, TCS/TDS)
 - [ ] Deployed
 
