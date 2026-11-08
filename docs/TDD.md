@@ -1,11 +1,13 @@
 # Settle: Technical Design Document
 
 **GitHub:** https://github.com/diptanu2004/IsoCode-Takehome
+
 **Live app:** `TODO: deployed URL`
+
 **Demo accounts:** listed in [deployment.md](../deployment.md)
 
-**Status:** Draft v0.1, 2026-11-02. Sections marked **TBD** are filled in as the
-build lands. This file is the source; the submitted PDF is exported from it.
+**Status:** v1.0, 9 November 2026. This file is the source; the submitted PDF
+is exported from it with `uv run docs/export_pdf.py`.
 
 Conventions used throughout:
 
@@ -72,7 +74,7 @@ thousands. The ₹6.5 L budget is less than the cost of one month of the problem
 
 | Measure | Target | What in the product moves it | How it is shown |
 |---|---|---|---|
-| Orders auto-matched | 98% | ID normalisation, matching on order ID or AWB (courier tracking number), a review queue for the rest | Overview KPI ([A1] defines the rate) |
+| Orders auto-matched | 98% | ID normalisation, matching on order ID or AWB (courier tracking number); rows that match nothing are counted per upload and on the Overview | Overview KPI ([A1] defines the rate) |
 | Month-end close | 12 → 3 days | Files are uploaded through the month, not at month end; matching re-runs only for affected orders; people work only the exceptions | Argued in this document; a demo cannot measure it |
 | Recovered through claims | ≥ ₹30 L in year one | Claims carry their evidence; small one-directional gaps are rolled up into a single claim (§8.5); claims are aged | Recovered vs target on the Overview |
 
@@ -87,7 +89,7 @@ a minute.
 |---|---|
 | **Core**: works end to end | <ul><li>Sign-in with two roles</li><li>Upload of CSV or Excel files for five file kinds: orders, settlement, COD remittance, freight invoice, warehouse return scans</li><li>Column mapping saved per source: rules plus AI suggestions, 20-row preview, approval, versions, rollback</li><li>Rate cards with effective dates</li><li>Order-level matching with all five statuses from the brief, with TCS and TDS kept separate</li><li>Claims list with evidence export</li><li>Money-at-risk view by partner and age</li></ul> |
 | **Depth**: low cost, planned | <ul><li>TCS/TDS summary per partner</li><li>Extra statuses: *pending* (not yet due), *within tolerance*, *overpaid*</li><li>Detection of systematic small gaps (§8.5)</li><li>Claim lifecycle, with recovered money tracked against the ₹30 L target</li><li>Claims close automatically when a late payment arrives</li><li>Audit log</li></ul> |
-| **Stretch**: if time allows | <ul><li>Review queue of suggested matches for partner rows that have no order ID</li><li>Separate returns-tracker screen</li><li>Returns-manager role</li></ul> |
+| **Stretch**: not built (§15) | <ul><li>Review queue of suggested matches for partner rows that have no order ID</li><li>Separate returns-tracker screen</li><li>Returns-manager role</li></ul> |
 | **Mocked** | Sending a claim to a partner: the app marks it raised and produces the evidence pack; nothing is sent |
 | **Out of scope** | Storefront or inventory sync, GST filing, automatic claim filing (all from the brief); payment-gateway reconciliation [A2]; live partner integrations |
 
@@ -107,9 +109,9 @@ money up.
 |---|:---:|:---:|
 | Upload files | ✓ | ✓ |
 | Approve or roll back a column mapping | ✓ | ✓ |
-| Void an upload (removes its rows and re-runs matching) | Own uploads | Any |
+| Void an upload (removes its rows and re-runs matching). *Not built yet (§16)* | Own uploads | Any |
 | View orders, statuses and the expected-vs-actual breakdown | ✓ | ✓ |
-| Accept or reject suggested matches | ✓ | ✓ |
+| Accept or reject suggested matches. *Stretch, not built (§9.5)* | ✓ | ✓ |
 | Raise a claim, add the partner's reference, mark it recovered or partner-rejected | ✓ | ✓ |
 | Export evidence | ✓ | ✓ |
 | **Write off a claim** | — | ✓ |
@@ -222,11 +224,11 @@ erDiagram
 |---|---|---|
 | `users` | email, password_hash, role, is_active | Role is `exec` or `cofounder` |
 | `sessions` | token_hash, user_id, expires_at | Server-side sessions, so deactivating a user takes effect at once |
-| `partners` | name, kind, settlement_cycle_days, tolerance_paise, return_window_days | Kind is marketplace, quick-commerce, courier, warehouse or storefront |
+| `partners` | name, kind, settlement_cycle_days, tolerance_paise, return_window_days | Kind is storefront (the website), marketplace, quick_commerce, courier, or internal (the order system and the warehouse) |
 | `sources` | partner_id, file_kind | For example "Marketplace 1 · settlement". Each saved mapping belongs to a source |
 | `mapping_versions` | source_id, version, header_fingerprint, mapping (jsonb), personal_data_columns, suggested_by, approved_by, is_active | Never edited in place; rollback makes an older version active again |
 | `uploads` | source_id, mapping_version_id, filename, sha256, row_count, error_count, status, stage_timings | Also acts as the job queue. Status runs queued → needs_mapping → loading → matching → done, or ends in failed or voided |
-| `source_rows` | upload_id, row_no, raw (jsonb), error | The original cells, **minus personal-data columns**. Used as evidence and to re-apply a mapping after rollback |
+| `source_rows` | upload_id, row_no, raw (jsonb), error | The original cells, **minus personal-data columns**. Shown as evidence in the order panel and the evidence ZIP; kept so a rolled-back mapping could be re-applied (not built yet, §16) |
 | `orders` | order_id, channel_partner_id, courier_partner_id, awb, order_date, value_paise, units, payment_mode, declared_weight_g, delivery_status, delivered_at, returned_at | One row per order. A later upload updates the status. No name, phone or address |
 | `partner_lines` | upload_id, row_no, partner_id, order_ref, awb, order_id (once resolved), component, amount_paise, txn_date, reference | One row per money component per order (§8.1) |
 | `return_scans` | upload_id, row_no, awb, order_ref, scanned_at, condition | Warehouse receipt scans |
@@ -236,8 +238,10 @@ erDiagram
 | `claims` | partner_id, order_id (null for a systematic gap), type, amount_paise, status, recovered_paise, partner_ref, component, period_month, aging_from | Status runs open → raised → partner_rejected, then ends as recovered, written_off or auto_resolved. Unique indexes allow one live claim per order and problem, and per partner, component and month |
 | `claim_orders` | claim_id, order_id, amount_paise | The orders behind a systematic-gap claim |
 | `claim_events` | claim_id, actor_id, from_status, to_status, note, at | Claim history |
-| `match_suggestions` | partner_line_id, candidate_order_id, score, reasons, status | Stretch: the review queue for rows with no order ID |
-| `audit_log` | actor_id, action, entity, entity_id, before, after, at | Every mapping approval, rate-card edit, claim change and role change |
+| `match_suggestions` | partner_line_id, candidate_order_id, score, reasons, status | Designed for the review queue (§9.5); not created, since the queue is not built |
+| `audit_log` | actor_id, action, entity, entity_id, before, after, at | Every mapping approval, rate-card version, partner-settings change, claim action and change to people |
+| `login_attempts` | email, ip, at, succeeded | For the lockout (§12.1) |
+| `app_meta` | key, value (jsonb) | Small facts the app keeps, such as the day the daily re-check last ran |
 
 Rules that apply across the model:
 
@@ -506,8 +510,10 @@ How small gaps are handled:
 - apply a per-field `negate` flag where a partner reports deductions as
   positive numbers.
 
-A partner line that matches no order goes to the unmatched list. In the
-stretch build, it goes to the review queue with suggested candidates instead.
+A partner line that matches no order is kept, counted on its upload ("N
+without an order") and on the Overview, and linked automatically if a later
+orders file contains it. A review queue with suggested candidates is designed
+but not built (§9.5).
 
 ### 8.8 Worked example: the brief's sample rows
 
@@ -643,9 +649,9 @@ after the format changes. Matching and expected amounts stay rule-based.
 - **On the known formats** (the 11 seed layouts and Marketplace 1's changed
   report), the rules map every field except one, which a synonym then fixed.
 
-### 9.5 Suggested matches for rows with no order ID (stretch)
+### 9.5 Suggested matches for rows with no order ID (stretch, not built)
 
-Candidates are scored by rules: exact amount, partial AWB, date within ±3
+The design, not yet built: candidates are scored by rules: exact amount, partial AWB, date within ±3
 days, same partner. The top candidates go to a review queue. They are never
 matched automatically, as the brief requires.
 
@@ -744,7 +750,52 @@ and simple filters.
 
   The page itself never scrolls sideways; only those rows do.
 
-**TBD:** screenshots of each screen.
+### 11.4 Screenshots
+
+Taken from the seeded demo data (60,000 orders, as of 6 November 2026, re-checked
+daily since), signed in as the co-founder.
+
+**Overview.** Money at risk by partner and age; every cell opens its claims.
+The recovered meter, the auto-match rate against its target, small gaps within
+tolerance, and TCS/TDS kept apart.
+
+![Overview](screenshots/01-overview.png)
+
+**Reconciliation.** Status chips with counts, filters, and problems first.
+
+![Reconciliation](screenshots/02-reconciliation.png)
+
+**One order in full.** The brief's sample row ORD-M-88120: ₹899 expected,
+₹868.91 received, −₹30.09 on commission, with TCS and TDS shown apart and every
+number traced to its file and row.
+
+![Order detail](screenshots/03-order-detail.png)
+
+**Claims.** A card per partner with the evidence ZIP and "Raise all"; claims
+aged from the day the money was due.
+
+![Claims](screenshots/04-claims.png)
+
+**A systematic-gap claim.** Quick-commerce 2 takes ₹5 more fixed fee on every
+order, under the ₹10 tolerance each time, so it is claimed as one pattern.
+
+![Systematic claim](screenshots/05-claim-systematic.png)
+
+**Rate cards.** The same pattern flags the rate card for review.
+
+![Rate cards](screenshots/06-rate-cards.png)
+
+**Uploads.**
+
+![Uploads](screenshots/07-uploads.png)
+
+**Settings.**
+
+![Settings](screenshots/08-settings.png)
+
+**Phone.** The Overview, and the order panel full screen.
+
+<p><img src="screenshots/09-phone-overview.png" alt="Overview on a phone" width="180"> &nbsp; <img src="screenshots/10-phone-order.png" alt="Order on a phone" width="250"></p>
 
 ## 12. Security and privacy
 
@@ -872,11 +923,13 @@ noted.
 1. **Tally export** of claims and recoveries, since the books are in Tally.
 2. **Scheduled ingestion** of partner reports from email or SFTP, so the close
    never waits on downloads.
-3. **Suggested matches** for rows with no order ID (if not shipped as
-   stretch), with LLM help on the hard cases.
-4. **A returns-manager role and tracker screen.**
-5. **Partial returns and multi-unit orders** at line level.
-6. **Draft claim emails** for each partner's dispute process.
+3. **Suggested matches** for rows with no order ID (§9.5), with LLM help on
+   the hard cases.
+4. **Voiding an upload** from the screen, and re-mapping files already loaded
+   when a layout is rolled back (§16).
+5. **A returns-manager role and tracker screen.**
+6. **Partial returns and multi-unit orders** at line level.
+7. **Draft claim emails** for each partner's dispute process.
 
 ## 16. Known limits
 
@@ -922,12 +975,12 @@ noted.
 | Upload order, settlement, COD and freight files (CSV/Excel) with mapping saved per source | §7.1, §9; Uploads and Mapping screens |
 | Order-level matching with the five statuses | §8.4; Reconciliation screen |
 | Rate cards; flag gaps over ₹10 | §8.3, §8.5; Rate cards screen |
-| Returns against warehouse scans | §8.4 (return not received); tracker screen is stretch |
+| Returns against warehouse scans | §8.4 (return not received); a separate tracker screen is not built |
 | Claims by partner with evidence; money at risk by partner and age | §7.3, §8.4; Claims and Overview screens |
 | TCS/TDS summary per partner | §8.6; Overview |
 | Roles: finance executive and co-founder | §4 |
 | AI column mapping: 20-row preview, approval, versioning, rollback | §9 |
-| Suggested matches never closed automatically | §9.5 (stretch) |
+| Suggested matches never closed automatically | §9.5 (designed; stretch, not built). Nothing is ever matched by guesswork |
 | 1 lakh rows in under a minute | §10 |
 | Personal data masked (DPDP) | §12.2 |
 | TCS/TDS shown separately, not as leakage | §8.6, §8.8 |

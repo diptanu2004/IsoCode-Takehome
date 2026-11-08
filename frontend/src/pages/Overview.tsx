@@ -330,27 +330,29 @@ function Taxes({ o }: { o: OverviewData }) {
           <thead>
             <tr className="border-b border-line text-xs text-muted">
               <th className="py-2 text-left font-medium">Partner</th>
-              <th className="py-2 text-right font-medium">TCS</th>
-              <th className="py-2 text-right font-medium">TDS</th>
-              <th className="py-2 text-right font-medium">Total</th>
+              <th className="py-2 pl-3 text-right font-medium">TCS</th>
+              <th className="py-2 pl-3 text-right font-medium">TDS</th>
+              <th className="hidden py-2 pl-3 text-right font-medium sm:table-cell">Total</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
             {o.taxes.map((t) => (
               <tr key={t.partner_id}>
-                <td className="py-2">{t.partner}</td>
-                <td className="num py-2 text-right">{formatRupees(t.tcs_paise)}</td>
-                <td className="num py-2 text-right">{formatRupees(t.tds_paise)}</td>
-                <td className="num py-2 text-right text-muted">{formatRupees(t.tcs_paise + t.tds_paise)}</td>
+                <td className="py-2 pr-2">{t.partner}</td>
+                <td className="num py-2 pl-3 text-right">{formatRupees(t.tcs_paise)}</td>
+                <td className="num py-2 pl-3 text-right">{formatRupees(t.tds_paise)}</td>
+                <td className="num hidden py-2 pl-3 text-right text-muted sm:table-cell">
+                  {formatRupees(t.tcs_paise + t.tds_paise)}
+                </td>
               </tr>
             ))}
           </tbody>
           <tfoot>
             <tr className="border-t border-line-strong font-semibold">
               <td className="py-2">All partners</td>
-              <td className="num py-2 text-right">{formatRupees(tcs)}</td>
-              <td className="num py-2 text-right">{formatRupees(tds)}</td>
-              <td className="num py-2 text-right">{formatRupees(tcs + tds)}</td>
+              <td className="num py-2 pl-3 text-right">{formatRupees(tcs)}</td>
+              <td className="num py-2 pl-3 text-right">{formatRupees(tds)}</td>
+              <td className="num hidden py-2 pl-3 text-right sm:table-cell">{formatRupees(tcs + tds)}</td>
             </tr>
           </tfoot>
         </table>
