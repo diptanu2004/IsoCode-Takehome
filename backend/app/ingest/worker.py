@@ -9,19 +9,21 @@ import logging
 import threading
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.db import get_engine
 from app.enums import UploadStatus
-from app.ingest.pipeline import process_upload
+from app.ingest.pipeline import process_upload, upload_path
 from app.recon.engine import match_pending, today
-from app.schema import app_meta
+from app.schema import app_meta, uploads
 
 log = logging.getLogger(__name__)
 
 IDLE_SECONDS = 1.0
 STUCK_AFTER = timedelta(minutes=15)
+ABANDONED_AFTER = timedelta(hours=24)  # [A19]
+PURGE_EVERY = timedelta(minutes=10)
 
 
 def claim_next() -> int | None:
@@ -78,6 +80,30 @@ def run_one() -> int | None:
     return upload_id
 
 
+def purge_abandoned(now: datetime | None = None) -> int:
+    """Files left at the mapping step for a day are deleted: they can hold personal data that
+    Settle never keeps [A19]. The upload is marked failed, so the same file can be sent again."""
+    cutoff = (now or datetime.now(UTC)) - ABANDONED_AFTER
+    with get_engine().begin() as conn:
+        rows = conn.execute(
+            update(uploads)
+            .where(
+                uploads.c.status == UploadStatus.NEEDS_MAPPING.value,
+                uploads.c.created_at < cutoff,
+            )
+            .values(
+                status=UploadStatus.FAILED.value,
+                finished_at=func.now(),
+                error_message="Not mapped within 24 hours, so the file was deleted. "
+                "Upload it again to map it.",
+            )
+            .returning(uploads.c.id, uploads.c.filename)
+        ).all()
+    for r in rows:
+        upload_path(r.id, r.filename).unlink(missing_ok=True)
+    return len(rows)
+
+
 def sweep_if_new_day() -> bool:
     """Once a day, re-check orders waiting on a date: time alone can make a payment overdue."""
     day = today().isoformat()
@@ -101,10 +127,14 @@ class Worker(threading.Thread):
 
     def run(self) -> None:
         requeue_stuck()
+        next_purge = datetime.now(UTC)
         while not self._stopping.is_set():
             try:
                 if run_one() is None:
                     sweep_if_new_day()
+                    if datetime.now(UTC) >= next_purge:
+                        purge_abandoned()
+                        next_purge = datetime.now(UTC) + PURGE_EVERY
                     self._stopping.wait(IDLE_SECONDS)
             except Exception:  # never let the thread die; the database may be restarting
                 log.exception("Upload worker error")
