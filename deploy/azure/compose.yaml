@@ -1,13 +1,37 @@
-# Production on one VM: the app image plus Caddy, which terminates HTTPS with a free
-# Let's Encrypt certificate for the VM's DNS name. The database is Neon (DATABASE_URL).
+# Production on one VM: Postgres, the app image, and Caddy, which terminates HTTPS with a
+# free Let's Encrypt certificate for the VM's DNS name.
 #
 #   cd /opt/settle/deploy/azure
 #   docker compose up -d --build
 #
 # Settings come from deploy/azure/.env on the VM (never committed): the app's variables
-# (deployment.md) plus SITE_ADDRESS, the VM's DNS name.
+# (deployment.md), SITE_ADDRESS (the VM's DNS name) and POSTGRES_PASSWORD. DATABASE_URL
+# points at the db service: postgresql://settle:<POSTGRES_PASSWORD>@db:5432/settle.
+#
+# The database used to be Neon's free plan. The upload worker checks for work every second,
+# so Neon's compute never went idle and the monthly quota ran out; a database on the same
+# VM has no quota and no network hop.
 
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: settle
+      POSTGRES_DB: settle
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/azure/.env}
+    # Sized for a 4 GB VM shared with the app; no port is published outside Docker.
+    command: >-
+      postgres -c shared_buffers=512MB -c effective_cache_size=1536MB
+      -c work_mem=32MB -c maintenance_work_mem=256MB
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U settle -d settle"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   app:
     build: ../..
     env_file: .env
@@ -15,6 +39,9 @@ services:
       COOKIE_SECURE: "true"
     volumes:
       - uploads:/app/var/uploads
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=5)"]
@@ -40,6 +67,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  pgdata:
   uploads:
   caddy_data:
   caddy_config:
