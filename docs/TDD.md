@@ -198,7 +198,7 @@ flowchart LR
 | Backend language | Python and FastAPI | Polars parses a 1 lakh-row CSV or Excel file in seconds; Pydantic validates every input; pytest for the matching rules | Node.js: Excel parsing is slower and uses more memory at this size |
 | Where matching runs | SQL in Postgres | Joins and group-bys over 1 lakh rows take seconds in the database. Looping over rows in app code is where time budgets are lost | Matching row by row in Python |
 | Background work | Worker thread with a Postgres-backed queue | Long jobs never run inside an HTTP request, and nothing extra has to be deployed | Celery with Redis: more moving parts than one company's volume needs |
-| Deployment | One Docker container serving the API and the built SPA, plus managed Postgres | One URL, no cross-origin or cookie problems, one thing to deploy | Serverless functions: request-size limits and timeouts do not fit 1 lakh-row files |
+| Deployment | One Docker container serving the API and the built SPA, with Postgres beside it on the same VM (Neon at first; see §16) | One URL, no cross-origin or cookie problems, one thing to deploy | Serverless functions: request-size limits and timeouts do not fit 1 lakh-row files |
 | Money type | Integer paise in `bigint` columns | No floating-point drift in sums or comparisons | `numeric`/`float` columns |
 
 ## 6. Data model
@@ -975,8 +975,15 @@ noted.
   where that risk sits.
 - Rolling back a layout changes how new files are read. It doesn't yet re-map
   files already loaded with the replaced version, which §9.1 step 8 describes.
-- The live demo runs on one VM. A VM failure takes the app down until it is
-  restarted; there is no second instance. The data is safe in Neon.
+- The live demo runs on one VM, database included. A VM failure takes the app
+  down until it is restarted, and there are no automatic backups (the demo
+  data can be re-seeded in 30 seconds; real data would need a nightly
+  `pg_dump` off the VM).
+- The database was first Neon's free plan. The upload worker polls for work
+  every second, so Neon's compute never suspended and the monthly free quota
+  ran out after about two weeks, taking the app down. The database moved onto
+  the VM. A database billed by active time would need the worker to wait on
+  Postgres `LISTEN/NOTIFY` instead of polling.
 - The first deployment was on Render's free instance. It sleeps after 15 idle
   minutes, and during setup it twice failed to start a new container with
   nothing in its logs, so the demo moved to an Azure VM. Nothing in the app

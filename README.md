@@ -46,7 +46,7 @@ with evidence attached.
 - [x] Settings: partner terms (re-check on change), people and roles, the audit log
 - [x] Docker image, Azure VM setup (Caddy for HTTPS), Render blueprint, demo files
 - [x] Overview: money at risk by partner and age (cells open the claims), recovered vs ₹30 L, auto-match rate vs 98%, within tolerance, TCS/TDS
-- [x] Deployed on an Azure VM + Neon (Singapore); 1 lakh-row settlement file matched in 29.3 s on a deployed instance (TDD §10)
+- [x] Deployed on an Azure VM in Singapore (app, Postgres and Caddy); 1 lakh-row settlement file matched in 29.3 s on a deployed instance (TDD §10)
 
 ## Stack
 
@@ -56,7 +56,7 @@ with evidence attached.
 | Backend | Python 3.12, FastAPI, Pydantic, SQLAlchemy Core, psycopg 3, Alembic, Polars |
 | Database | PostgreSQL 16 |
 | AI | Groq (`openai/gpt-oss-120b`, strict structured outputs), with a rule-based fallback; Anthropic as an option |
-| Hosting | One Docker container on an Azure VM behind Caddy (HTTPS), with Neon Postgres |
+| Hosting | One Azure VM: the app container, Postgres 16 and Caddy (HTTPS) |
 
 The reasons for each choice are in [TDD §5](docs/TDD.md#5-architecture).
 

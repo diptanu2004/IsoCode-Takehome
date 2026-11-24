@@ -8,7 +8,7 @@ How to run Settle on your own machine and how to deploy it.
 |---|---|
 | App | One Docker container. FastAPI serves the API under `/api` and the built React app on every other path. A background worker thread in the same process handles uploads. |
 | HTTPS | Caddy in front of the app on the VM. It gets and renews a Let's Encrypt certificate by itself. |
-| Database | PostgreSQL 16. Neon in production; Docker Compose locally. |
+| Database | PostgreSQL 16, in a container on the same VM in production; Docker Compose locally. |
 | AI (optional) | Groq's API (or Anthropic's), used only for column-mapping suggestions. Without a key, the app uses rule-based suggestions instead. |
 
 Nothing else is needed: no Redis, no object storage, no separate worker
@@ -33,7 +33,7 @@ Copy `.env.example` to `.env` and fill it in. Never commit `.env`.
 
 | Variable | Required | Example | Purpose |
 |---|---|---|---|
-| `DATABASE_URL` | Yes | `postgresql://recon:recon@localhost:5433/recon` | Postgres connection. Neon URLs need `?sslmode=require` |
+| `DATABASE_URL` | Yes | `postgresql://recon:recon@localhost:5433/recon` | Postgres connection. Hosted Postgres such as Neon needs `?sslmode=require` |
 | `SESSION_SECRET` | Yes | 64 random hex characters | Signs session and CSRF tokens. Generate one with `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `COOKIE_SECURE` | Yes in production | `true` | Sends cookies only over HTTPS. Set `false` for local HTTP |
 | `LLM_PROVIDER` | No | `groq` | `groq` (default) or `anthropic` |
@@ -112,16 +112,13 @@ that runs only when the provider's key is in `.env`. To score the AI yourself:
 `uv run python -m scripts.eval_mapping --ai`.
 Without it, those tests use a stubbed response.
 
-## Deploy to production (Azure VM + Neon)
+## Deploy to production (Azure VM)
 
 The live demo runs on one Azure VM (Ubuntu 24.04, B2als v2: 2 vCPU, 4 GB) in
-Southeast Asia, next to the Neon database in Singapore. The files are in
-`deploy/azure/`.
+Southeast Asia: Postgres 16, the app and Caddy as three containers. The files
+are in `deploy/azure/`. Postgres publishes no port outside Docker.
 
-1. **Database.** Create a Neon project with Postgres 16 in AWS Asia Pacific
-   (Singapore). Copy its connection string with connection pooling off; it
-   ends in `?sslmode=require`.
-2. **VM.** With the Azure CLI signed in (`az login`), run:
+1. **VM.** With the Azure CLI signed in (`az login`), run:
 
    ```bash
    deploy/azure/create-vm.sh <dns-label> ~/.ssh/<key>.pub <your-public-ip>
@@ -130,31 +127,36 @@ Southeast Asia, next to the Neon database in Singapore. The files are in
    It creates the VM with SSH open only to your address and ports 80 and 443
    open to everyone, and cloud-init installs Docker and Compose. The app's
    address is `https://<dns-label>.southeastasia.cloudapp.azure.com`.
-3. **Code and settings.** Copy the code to `/opt/settle` (a `git clone`, or
-   `git archive HEAD | ssh azureuser@<vm> 'tar -x -C /opt/settle'` for a
-   private repository). Then create `/opt/settle/deploy/azure/.env`
-   (mode 600) with `SITE_ADDRESS` (the VM's DNS name), `DATABASE_URL` (the Neon
-   string), `SESSION_SECRET`, `LLM_PROVIDER` and `GROQ_API_KEY`.
-4. **Start.** On the VM:
+2. **Code and settings.** `git clone` the repository to `/opt/settle`. Then
+   create `/opt/settle/deploy/azure/.env` (mode 600) with:
+   - `SITE_ADDRESS`: the VM's DNS name;
+   - `POSTGRES_PASSWORD`: a random value, e.g. `openssl rand -hex 24`;
+   - `DATABASE_URL=postgresql://settle:<POSTGRES_PASSWORD>@db:5432/settle`;
+   - `SESSION_SECRET`, `LLM_PROVIDER`, `GROQ_API_KEY`;
+   - `SEED_EXEC_EMAIL`, `SEED_EXEC_PASSWORD`, `SEED_COFOUNDER_EMAIL`,
+     `SEED_COFOUNDER_PASSWORD` for the demo accounts.
+3. **Start.** On the VM:
 
    ```bash
    cd /opt/settle/deploy/azure && docker compose up -d --build
    ```
 
-   The app container runs `alembic upgrade head` before it starts serving,
-   so the schema is created on the first start and kept current after that.
-   Caddy gets the HTTPS certificate on its first request. Both containers
-   restart on failure and after a reboot.
-5. **Seed once.** Run this from your own machine, pointed at the Neon
-   database. The demo passwords come from your `.env`:
+   The app waits for Postgres to be healthy, then runs `alembic upgrade head`
+   before it starts serving, so the schema is created on the first start and
+   kept current after that. Caddy gets the HTTPS certificate on its first
+   request. All three containers restart on failure and after a reboot.
+4. **Seed once.** On the VM (about 30 seconds):
 
    ```bash
-   cd backend
-   DATABASE_URL="<neon url>" uv run python -m scripts.seed --as-of 2026-11-06
+   docker compose exec -T app python -m scripts.seed --reset --as-of 2026-11-06
    ```
 
-   It loads the partner files the same way an upload does, so it also shows
-   how long matching takes against Neon.
+   It loads the partner files the same way an upload does. The seed passwords
+   can be removed from `.env` afterwards.
+5. **No SSH?** `az vm run-command invoke -g settle-rg -n settle-vm
+   --command-id RunShellScript --scripts "<commands>"` runs commands through
+   the Azure agent. It helps when your network's public address changes and
+   no longer matches the SSH rule (common on mobile and carrier-NAT networks).
 6. **Smoke test.**
    - `/api/health` returns `{"status": "ok"}`.
    - Sign in as each role.
@@ -172,16 +174,31 @@ first deployment. Its free instance sleeps after 15 idle minutes, and during
 setup it twice failed to start a new container with nothing in the logs, so
 the demo moved to the VM.
 
+### Earlier: Neon for the database
+
+Until 25 November the database was Neon's free plan (Postgres 16, Singapore).
+The upload worker checks the `uploads` table for work every second, so Neon's
+compute never went idle long enough to suspend, and the free plan's monthly
+compute ran out after about two weeks. Every database request then failed
+with "Your account or project has exceeded the quota". A hosted database that
+bills by active time needs a worker that waits for a notification (Postgres
+`LISTEN/NOTIFY`) instead of polling; on the VM, polling a local database costs
+nothing.
+
 ## Updating and rolling back
 
-- **Update.** Copy the new code to the VM, then
-  `docker compose up -d --build`. The new container runs migrations on start.
-- **Code rollback.** Copy the earlier commit and run the same command.
+- **Update.** `git pull` in `/opt/settle`, then
+  `docker compose up -d --build` in `deploy/azure`. The new container runs
+  migrations on start.
+- **Code rollback.** `git checkout <earlier commit>` and run the same command.
   Migrations are written to work with the previous release (columns are added
   before they are used), so rolling back code does not need a database
   rollback.
 - **Costs.** `az vm deallocate -g settle-rg -n settle-vm` stops the VM's
-  compute charges; `az vm start` brings it back with the same address.
+  compute charges; `az vm start` brings it back with the same address. The
+  database volume is kept.
+- **Backups.** The demo data can be recreated with the seed command. For real
+  data, add a nightly `pg_dump` to Azure Blob Storage.
 - **Mapping rollback.** This is done inside the app (Mapping → Versions), not
   through a deployment.
 
@@ -192,6 +209,7 @@ the demo moved to the VM.
 | Sign-in works locally but not in production | `COOKIE_SECURE` does not match the protocol | `true` on HTTPS, `false` on local HTTP |
 | `SSL connection is required` | Neon URL is missing `sslmode` | Add `?sslmode=require` |
 | Mapping shows "AI unavailable" | No key for the chosen `LLM_PROVIDER`, or the call failed | Expected without a key; otherwise check the logs |
+| Every request returns 500 and health fails | The database is unreachable (with Neon: the free compute quota ran out) | `docker compose ps` and `docker compose logs db`; see "Earlier: Neon" above |
 | Upload stuck in `queued` | The worker thread is not running | Check the startup logs; restart the service |
 | Large upload rejected | `MAX_UPLOAD_MB` is too low | Raise it in the environment |
 | HTTPS fails right after the first start | Caddy is still getting the certificate, or port 80 is closed | Wait a minute; check `docker compose logs caddy` and the VM's network rules |
